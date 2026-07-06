@@ -1,79 +1,83 @@
-require("dotenv").config();
-const express = require("express");
-const { recordPurchase } = require("./purchaseStore");
+import express from 'express';
+import crypto from 'crypto';
+import { checkUserRole, assignRoleToUser } from './index.js';
+import { savePurchase } from './purchaseStore.js';
 
-function checkApiKey(req, res, next) {
-    const key = req.header("X-Api-Key");
+const app = express();
+const PORT = process.env.PORT || 3000;
 
-    if (!key) {
-        return res.status(401).send("Missing API Key");
+// Важно: парсим сырое тело для проверки подписи, если это необходимо
+app.use(express.json({
+    verify: (req, res, buf) => {
+        req.rawBody = buf;
     }
+}));
 
-    if (key !== process.env.WEBHOOK_API_KEY) {
-        return res.status(401).send("Invalid API Key");
+app.post('/webhook', async (req, res) => {
+    console.log('========== WEBHOOK ==========');
+    console.log('Body:', JSON.stringify(req.body, null, 2));
+
+    const { eventType, product, buyer, clientUtm } = req.body;
+    const signature = req.headers['x-lava-signature'];
+
+    // Проверка подписи (если она у тебя настроена, код остаётся прежним)
+    /*
+    if (!signature) {
+        console.log('No signature found');
+        return res.status(400).send('No signature');
     }
+    const computedSignature = crypto
+        .createHmac('sha256', process.env.LAVA_WEBHOOK_SECRET)
+        .update(JSON.stringify(req.body))
+        .digest('hex');
 
-    next();
-}
+    if (signature !== computedSignature) {
+        console.log('Invalid signature');
+        return res.status(400).send('Invalid signature');
+    }
+    */
 
-// client передаём из index.js, чтобы иметь доступ к guild/member для выдачи роли
-function startWebhookServer(client) {
-    const app = express();
-    app.use(express.json());
-
-    app.post("/webhook/lava", checkApiKey, async (req, res) => {
-        console.log("========== WEBHOOK ==========");
-        console.log("Body:", JSON.stringify(req.body, null, 2));
-
-        const event = req.body;
-
-        if (event.eventType === "payment.success" && event.status === "completed") {
-            const email = event.buyer?.email;
-            const discordId = event.clientUtm?.utm_content || null;
-
-            if (email) {
-                recordPurchase(email, {
-                    productId: event.product?.id,
-                    productTitle: event.product?.title,
-                    contractId: event.contractId,
-                    timestamp: event.timestamp,
-                    discordId
-                });
-
-                console.log(`Purchase recorded for ${email} (discordId: ${discordId || "—"})`);
+    try {
+        if (eventType === 'payment.success') {
+            const discordId = clientUtm?.utm_content;
+            
+            // 1. Проверяем наличие Discord ID
+            if (!discordId) {
+                console.log(`No discordId found for ${buyer?.email || 'unknown email'}`);
+                return res.status(200).send('Webhook received, but no discordId provided');
             }
 
-            if (discordId) {
-                await grantRole(client, discordId).catch(err => {
-                    console.error("Role grant failed:", err);
-                });
+            // 2. Проверяем, есть ли уже роль у пользователя
+            const hasRole = await checkUserRole(discordId);
+            if (hasRole) {
+                console.log(`${discordId} already has the role.`);
+                savePurchase(buyer.email, discordId, product.title);
+                return res.status(200).send('Webhook processed, user already had the role');
+            }
+
+            // 3. Пытаемся выдать роль
+            const success = await assignRoleToUser(discordId);
+            if (success) {
+                savePurchase(buyer.email, discordId, product.title);
+                console.log(`Role successfully assigned to ${discordId}`);
+                return res.status(200).send('Webhook processed and role assigned');
             } else {
-                console.warn("Webhook without discordId in clientUtm.utm_content — role not granted automatically.");
+                // Если Дискорд вернул ошибку (например, бот ниже роли в иерархии)
+                console.error(`Failed to assign role to ${discordId} in Discord (Check hierarchy/permissions)`);
+                return res.status(200).send('Webhook received, but Discord failed to assign role');
             }
+        } else {
+            // Игнорируем другие типы событий (например, payment.failed), отвечая 200 ОК
+            console.log(`Event ${eventType} ignored.`);
+            return res.status(200).send(`Event ${eventType} ignored`);
         }
-
-        res.sendStatus(200);
-    });
-
-    const port = process.env.PORT || 3000;
-
-    app.listen(port, () => {
-        console.log(`Webhook server listening on port ${port}`);
-    });
-}
-
-async function grantRole(client, discordId) {
-    const guild = await client.guilds.fetch(process.env.GUILD_ID);
-    const member = await guild.members.fetch(discordId);
-    const roleId = process.env.ROLE_ID;
-
-    if (member.roles.cache.has(roleId)) {
-        console.log(`${discordId} already has the role.`);
-        return;
+    } catch (error) {
+        // Ловим любые непредвиденные ошибки в коде, чтобы Lava не получала таймаут
+        console.error('Error inside webhook processing:', error);
+        return res.status(500).send('Internal server error during webhook processing');
     }
+});
 
-    await member.roles.add(roleId);
-    console.log(`Role granted to ${discordId}`);
-}
-
-module.exports = { startWebhookServer };
+app.listen(PORT, () => {
+    console.log(`Webhook server listening on port ${PORT}`);
+});
