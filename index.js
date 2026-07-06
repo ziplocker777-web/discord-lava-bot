@@ -36,13 +36,16 @@ client.on(Events.InteractionCreate, async (interaction) => {
             .setColor("#3DDC84")
             .setTitle("💥 Muzzle Core FX")
             .setDescription(
-`### Modernize every firefight in GTA V with a complete weapon particle overhaul.
+`# 💥 Muzzle Core FX
+
+### Modernize every firefight in GTA V with a complete weapon particle overhaul.
 
 Muzzle Core FX replaces outdated weapon effects with cinematic muzzle flashes, realistic gun smoke, enhanced impact effects, shell casings and tracers. Built directly on GTA V's particle system, it delivers a clean, seamless upgrade without modifying weapon stats or relying on outdated \`weapons.meta\` replacements.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 🔥 **Features:**
+
 • **Engine-Level Particle Overhaul**
 Built directly into GTA V's particle system for maximum compatibility. No \`weapons.meta\` edits, no weapon stat conflicts.
 
