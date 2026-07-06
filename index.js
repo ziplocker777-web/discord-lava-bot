@@ -34,20 +34,44 @@ client.on(Events.InteractionCreate, async (interaction) => {
     if (interaction.isChatInputCommand() && interaction.commandName === "panel") {
         const embed = new EmbedBuilder()
             .setColor("#3DDC84")
-            .setTitle("Muzzle Core FX💥")
+            .setTitle("💥 Muzzle Core FX")
             .setDescription(
-`Engine-Level Weapon VFX for GTA V & FiveM
+`### Modernize every firefight in GTA V with a complete weapon particle overhaul.
 
-✓ Compatible with all vanilla & add-on weapons
-✓ No weapons.meta edits
-✓ Engine-level framework
-✓ Realistic muzzle flashes
-✓ Physics-based smoke
-✓ Shell casings & impacts
-✓ FiveM & Singleplayer`
+Muzzle Core FX replaces outdated weapon effects with cinematic muzzle flashes, realistic gun smoke, enhanced impact effects, shell casings and tracers. Built directly on GTA V's particle system, it delivers a clean, seamless upgrade without modifying weapon stats or relying on outdated \`weapons.meta\` replacements.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🔥 **Features:**
+• **Engine-Level Particle Overhaul**
+Built directly into GTA V's particle system for maximum compatibility. No \`weapons.meta\` edits, no weapon stat conflicts.
+
+• **Full Weapon Compatibility**
+Works seamlessly with vanilla, DLC and supported custom add-on weapons.
+
+• **Story Mode & FiveM**
+Includes separate, fully optimized versions for both Singleplayer and FiveM.
+
+• **Tracer & Non-Tracer Options**
+Choose between realistic bullet tracers or a clean, tracer-free experience.
+
+• **Cinematic Muzzle Flashes**
+Custom flash cores built from real firearm references for a modern, realistic appearance.
+
+• **Volumetric Gun Smoke**
+Dense smoke that lingers naturally and reacts to muzzle flashes and lighting.
+
+• **Enhanced Bullet Impacts & Shell Casings**
+Reworked impact particles, debris effects and realistic shell casing ejection.
+
+• **Visual Mod Compatible**
+Fully compatible with NVE, QuantV and most visual overhauls.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+# 💰 Price: $9.99`
             )
-            .setImage("https://cdn.discordapp.com/attachments/1521243996482175147/1521244405049331712/Frame_42.png")
-            .setFooter({ text: "Official Ziplocker Store" });
+            .setFooter({ text: "Official Ziplocker Store • Secure payment via Lava" });
 
         const row = new ActionRowBuilder().addComponents(
             new ButtonBuilder()
