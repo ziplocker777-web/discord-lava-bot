@@ -34,7 +34,6 @@ client.on(Events.InteractionCreate, async (interaction) => {
     if (interaction.isChatInputCommand() && interaction.commandName === "panel") {
         const embed = new EmbedBuilder()
             .setColor("#3DDC84")
-            .setTitle("💥 Muzzle Core FX")
             .setDescription(
 `# 💥 Muzzle Core FX
 
