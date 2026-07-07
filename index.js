@@ -98,7 +98,7 @@ Fully compatible with NVE, QuantV and most visual overhauls.
         const embed = new EmbedBuilder()
             .setColor("#3DDC84")
             .setDescription(
-`# ☀️ Ziplocker Summer Visuals
+`# 🌴 Ziplocker Summer Visuals
 
 ### A complete visual overhaul for GTA V & FiveM.
 
@@ -142,8 +142,14 @@ Switch between different looks in seconds depending on the weather, time of day 
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━
 
+💥 **Complete Experience**
+Pair it with Muzzle Core FX to upgrade both your graphics and weapon effects.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━
+
 # 💰 Price: $6.99`
             )
+            .setImage("https://cdn.discordapp.com/attachments/1521243996482175147/1521574982512152687/Frame412_1.png?ex=6a4de661&is=6a4c94e1&hm=5c3a94df86f37a952ed951e1b04040cc4d25f3e73017050fee856dac32568c9f&")
             .setFooter({ text: "Official Ziplocker Store • Secure payment via Lava" });
 
         const row = new ActionRowBuilder().addComponents(
