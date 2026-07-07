@@ -18,6 +18,7 @@ const { hasPurchase } = require("./purchaseStore.js");
 const { createInvoice } = require("./lavaClient.js");
 
 const PRODUCT_ID = "04c91dde-254e-45ce-becb-5ab22a86cfca"; // Muzzle Core FX offerId
+const PRODUCT_ID_VISUALS = "70c48693-8412-4b5e-871a-9878fe6bfda5"; // Ziplocker Summer Visuals offerId
 
 const client = new Client({
     intents: [GatewayIntentBits.Guilds],
@@ -79,6 +80,75 @@ Fully compatible with NVE, QuantV and most visual overhauls.
         const row = new ActionRowBuilder().addComponents(
             new ButtonBuilder()
                 .setCustomId(`buy_${PRODUCT_ID}`)
+                .setStyle(ButtonStyle.Success)
+                .setLabel("Buy Now")
+                .setEmoji("💳")
+        );
+
+        await interaction.channel.send({ embeds: [embed], components: [row] });
+
+        return interaction.reply({
+            content: "✅ Panel created.",
+            ephemeral: true,
+        });
+    }
+
+    // ================= PANEL: ZIPLOCKER SUMMER VISUALS =================
+    if (interaction.isChatInputCommand() && interaction.commandName === "panelvisuals") {
+        const embed = new EmbedBuilder()
+            .setColor("#3DDC84")
+            .setDescription(
+`# ☀️ Ziplocker Summer Visuals
+
+### A complete visual overhaul for GTA V & FiveM.
+
+Bring GTA V a clean, vibrant summer look with a carefully tuned QuantV setup and a custom cinematic ReShade preset. Designed for players who want better visuals without spending hours tweaking dozens of settings.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🔥 **Features:**
+
+• **Carefully Configured QuantV**
+Clean and realistic summer atmosphere out of the box.
+
+• **Custom ReShade Preset**
+Balanced colors, lighting and contrast.
+
+• **Bright, Vibrant Daytime Visuals**
+While preserving realistic nighttime lighting.
+
+• **Performance-Friendly**
+Easy installation process, no heavy performance hit.
+
+• **Fully Customizable**
+Tune the look to your taste.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+⚡ **One-Key Visual Controls**
+
+Instantly adjust your graphics without opening the ReShade menu. Built-in hotkeys let you enable, disable or tweak:
+
+• Bloom
+• Lens Effects
+• Tint
+• Overlay
+• Borders
+• Night Mode
+• Depth of Field (DOF)
+• Saturation
+
+Switch between different looks in seconds depending on the weather, time of day or the cinematic style you want.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+# 💰 Price: $6.99`
+            )
+            .setFooter({ text: "Official Ziplocker Store • Secure payment via Lava" });
+
+        const row = new ActionRowBuilder().addComponents(
+            new ButtonBuilder()
+                .setCustomId(`buy_${PRODUCT_ID_VISUALS}`)
                 .setStyle(ButtonStyle.Success)
                 .setLabel("Buy Now")
                 .setEmoji("💳")
