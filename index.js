@@ -73,7 +73,7 @@ Fully compatible with NVE, QuantV and most visual overhauls.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-# 💰 Price: $9.99`
+# 💰 Price: $14.99`
             )
             .setImage("https://cdn.discordapp.com/attachments/1521243996482175147/1521244405049331712/Frame_42.png?ex=6a4cb281&is=6a4b6101&hm=fd414f16a1fc8047cdf19e2583f41adc6740cbc74dd50a8b9cf6d04cc45a615f&")
             .setFooter({ text: "Official Ziplocker Store • Secure payment via Lava" });
