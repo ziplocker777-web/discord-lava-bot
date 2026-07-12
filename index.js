@@ -19,6 +19,7 @@ const { createInvoice } = require("./lavaClient.js");
 
 const PRODUCT_ID = "04c91dde-254e-45ce-becb-5ab22a86cfca"; // Muzzle Core FX offerId
 const PRODUCT_ID_VISUALS = "70c48693-8412-4b5e-871a-9878fe6bfda5"; // Ziplocker Summer Visuals offerId
+const PRODUCT_ID_BLOOD = "aa6de8cb-810e-4b81-848c-bc38325ecadc"; // Ziplocker's Blood FX offerId
 
 const client = new Client({
     intents: [GatewayIntentBits.Guilds],
@@ -155,6 +156,62 @@ Pair it with Muzzle Core FX to upgrade both your graphics and weapon effects.
         const row = new ActionRowBuilder().addComponents(
             new ButtonBuilder()
                 .setCustomId(`buy_${PRODUCT_ID_VISUALS}`)
+                .setStyle(ButtonStyle.Success)
+                .setLabel("Buy Now")
+                .setEmoji("💳")
+        );
+
+        await interaction.channel.send({ embeds: [embed], components: [row] });
+
+        return interaction.reply({
+            content: "✅ Panel created.",
+            ephemeral: true,
+        });
+    }
+
+    // ================= PANEL: ZIPLOCKER'S BLOOD FX =================
+    if (interaction.isChatInputCommand() && interaction.commandName === "panelblood") {
+        const embed = new EmbedBuilder()
+            .setColor("#3DDC84")
+            .setDescription(
+`# 🩸 Ziplocker's Blood FX
+
+### Transform every firefight in GTA V with a complete overhaul of the game's blood and gore effects.
+
+Featuring 18 brand-new blood pool textures and 19 all-new blood splatter textures, each meticulously crafted in high resolution and enhanced with detailed normal and specular maps for a richer sense of depth, surface detail, and realistic wetness. Combined with Muzzle Core FX, this mod creates a uniquely cinematic and immersive combat experience.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🔥 **Features:**
+
+• **Reworked Blood Shading & Reflections**
+All blood pools, splatters, and soak textures have been redesigned to react naturally to light, delivering a convincing wet, fluid appearance far beyond the vanilla game.
+
+• **Completely New Impact Effects**
+Default body-hit particles have been replaced with custom PTFX effects, producing larger, more dramatic blood sprays and more satisfying shot impacts.
+
+• **Weapon-Specific Wounds**
+Wound decals and blood soak patterns dynamically vary according to the weapon and ammunition used, giving every caliber its own distinct visual signature.
+
+• **High-Resolution Assets Throughout**
+Every texture has been recreated in high definition to ensure exceptional clarity and detail at any distance.
+
+• **Expanded Visual Variety**
+A broad library of blood pools, splatters, wounds, and soak textures minimizes repetition and keeps every encounter looking unique.
+
+• **Additional Immersion Enhancements**
+Numerous environmental and damage-related textures and effects have also been refined to complement the new gore system and create a cohesive, cinematic atmosphere throughout GTA V.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+# 💰 Price: $8.99`
+            )
+            .setImage("https://cdn.discordapp.com/attachments/1521243996482175147/1525163948477775992/Frame_671.png?ex=6a55061d&is=6a53b49d&hm=068378d1f2ed688a402dcda139fdad28e58ce8912a31dfb272af6e8037f26d6a&")
+            .setFooter({ text: "Official Ziplocker Store • Secure payment via Lava" });
+
+        const row = new ActionRowBuilder().addComponents(
+            new ButtonBuilder()
+                .setCustomId(`buy_${PRODUCT_ID_BLOOD}`)
                 .setStyle(ButtonStyle.Success)
                 .setLabel("Buy Now")
                 .setEmoji("💳")
