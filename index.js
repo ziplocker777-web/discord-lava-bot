@@ -233,7 +233,7 @@ Numerous environmental and damage-related textures and effects have also been re
             .setDescription(
 `# 💫 Ziplocker Graphics Pack
 
-### The complete GTA V & FiveM enhancement pack.
+### The complete FiveM enhancement pack.
 
 Transform your game with improved visuals, immersive weapon effects, realistic sounds, enhanced blood physics, and upgraded environmental textures. Everything is carefully put together to create a more cinematic and immersive experience while remaining easy to install.
 
