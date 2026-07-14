@@ -20,6 +20,7 @@ const { createInvoice } = require("./lavaClient.js");
 const PRODUCT_ID = "04c91dde-254e-45ce-becb-5ab22a86cfca"; // Muzzle Core FX offerId
 const PRODUCT_ID_VISUALS = "70c48693-8412-4b5e-871a-9878fe6bfda5"; // Ziplocker Summer Visuals offerId
 const PRODUCT_ID_BLOOD = "aa6de8cb-810e-4b81-848c-bc38325ecadc"; // Ziplocker's Blood FX offerId
+const PRODUCT_ID_GRAPHICSPACK = "90159b55-e860-4860-803d-c9f49d73fff4"; // Ziplocker Graphics Pack offerId
 
 const client = new Client({
     intents: [GatewayIntentBits.Guilds],
@@ -215,6 +216,81 @@ Numerous environmental and damage-related textures and effects have also been re
                 .setStyle(ButtonStyle.Success)
                 .setLabel("Buy Now")
                 .setEmoji("💳")
+        );
+
+        await interaction.channel.send({ embeds: [embed], components: [row] });
+
+        return interaction.reply({
+            content: "✅ Panel created.",
+            ephemeral: true,
+        });
+    }
+
+    // ================= PANEL: ZIPLOCKER GRAPHICS PACK =================
+    if (interaction.isChatInputCommand() && interaction.commandName === "panelvisuals1") {
+        const embed = new EmbedBuilder()
+            .setColor("#3DDC84")
+            .setDescription(
+`# 💫 Ziplocker Graphics Pack
+
+### The complete GTA V & FiveM enhancement pack.
+
+Transform your game with improved visuals, immersive weapon effects, realistic sounds, enhanced blood physics, and upgraded environmental textures. Everything is carefully put together to create a more cinematic and immersive experience while remaining easy to install.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🔥 **Includes:**
+
+• **Blood Overhaul (Ziplockers Blood FX) & Ragdoll**
+Completely reworked blood effects with improved decals, particles, and more satisfying ragdoll reactions.
+
+• **Muzzle Flashes & Bullet Impacts (Muzzle Core FX)**
+High-quality muzzle flashes, tracers, shell effects, smoke, sparks, and realistic bullet impacts for every weapon, including DLC weapons.
+
+• **Gun Sound Overhaul**
+More powerful and immersive weapon sounds that make every shot feel impactful.
+
+• **Replaced Road & Vegetation Textures**
+Higher-quality road and vegetation textures for a cleaner and more detailed world.
+
+• **Custom Visual Overhaul (QuantV)**
+Carefully configured QuantV visuals with vibrant colors, improved lighting, and a balanced cinematic look.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+⚡ **Designed for an Immersive Experience**
+
+Every component has been selected to work together seamlessly, giving GTA V a fresh, modern look while improving combat, atmosphere, and overall immersion.
+
+• Better graphics
+• More realistic weapon effects
+• Improved blood & ragdoll physics
+• Enhanced weapon audio
+• Higher-quality environmental textures
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+💥 **Easy Installation**
+The pack includes everything you need, along with installation instructions to get up and running in just a few minutes.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+# 💰 Price: $29.99`
+            )
+            .setImage("https://cdn.discordapp.com/attachments/1521243996482175147/1526690275051831367/Frame_1.png?ex=6a57f09e&is=6a569f1e&hm=3b80d25bace53a137c3122c7fe1eea0417f388fea1c6ccbe254c4349e513446c&")
+            .setFooter({ text: "Official Ziplocker Store • Secure payment via Lava" });
+
+        const row = new ActionRowBuilder().addComponents(
+            new ButtonBuilder()
+                .setCustomId(`buy_${PRODUCT_ID_GRAPHICSPACK}`)
+                .setStyle(ButtonStyle.Success)
+                .setLabel("Buy Now")
+                .setEmoji("💳"),
+            new ButtonBuilder()
+                .setStyle(ButtonStyle.Link)
+                .setLabel("Watch Preview")
+                .setEmoji("▶️")
+                .setURL("https://www.youtube.com/watch?v=HHMTXwCt5wY")
         );
 
         await interaction.channel.send({ embeds: [embed], components: [row] });
