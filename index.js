@@ -308,7 +308,7 @@ The pack includes everything you need, along with installation instructions to g
         const embed = new EmbedBuilder()
             .setColor("#000000")
             .setDescription(
-`# 💫 Ziplocker's Graphics Pack
+`# 🌟 Ziplocker's Graphics Pack V2
 
 ### The ultimate all-in-one enhancement package for FiveM.
 
@@ -389,7 +389,7 @@ The pack includes everything required, together with simple installation instruc
         const embed = new EmbedBuilder()
             .setColor("#FFFFFF")
             .setDescription(
-`# ✨ Ziplocker's Graphics V2
+`# 🌠 Ziplocker's Graphics V2
 
 ### A premium visual overhaul created for players who want a cleaner and more immersive FiveM experience.
 
