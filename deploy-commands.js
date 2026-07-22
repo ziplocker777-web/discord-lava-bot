@@ -20,6 +20,14 @@ const commands = [
     .setDescription("Send the Ziplocker Graphics Pack purchase panel")
     .toJSON(),
   new SlashCommandBuilder()
+    .setName("panelgraphicspackv2")
+    .setDescription("Send the Ziplocker's Graphics Pack V2 purchase panel")
+    .toJSON(),
+  new SlashCommandBuilder()
+    .setName("panelgraphicsv2")
+    .setDescription("Send the Ziplocker's Graphics V2 purchase panel")
+    .toJSON(),
+  new SlashCommandBuilder()
     .setName("getrole")
     .setDescription("Send the role verification panel")
     .toJSON(),

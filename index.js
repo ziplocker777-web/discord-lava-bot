@@ -21,6 +21,8 @@ const PRODUCT_ID = "04c91dde-254e-45ce-becb-5ab22a86cfca"; // Muzzle Core FX off
 const PRODUCT_ID_VISUALS = "70c48693-8412-4b5e-871a-9878fe6bfda5"; // Ziplocker Summer Visuals offerId
 const PRODUCT_ID_BLOOD = "aa6de8cb-810e-4b81-848c-bc38325ecadc"; // Ziplocker's Blood FX offerId
 const PRODUCT_ID_GRAPHICSPACK = "90159b55-e860-4860-803d-c9f49d73fff4"; // Ziplocker Graphics Pack offerId
+const PRODUCT_ID_GRAPHICSPACK_V2 = "98960219-f5e3-4330-a7c1-b86cf318c8db"; // Ziplocker's Graphics Pack V2 offerId
+const PRODUCT_ID_GRAPHICS_V2 = "f4eadbcb-0353-4cb8-a759-e6d471c35c36"; // Ziplocker's Graphics V2 offerId
 
 const client = new Client({
     intents: [GatewayIntentBits.Guilds],
@@ -291,6 +293,152 @@ The pack includes everything you need, along with installation instructions to g
                 .setLabel("Watch Preview")
                 .setEmoji("▶️")
                 .setURL("https://www.youtube.com/watch?v=HHMTXwCt5wY")
+        );
+
+        await interaction.channel.send({ embeds: [embed], components: [row] });
+
+        return interaction.reply({
+            content: "✅ Panel created.",
+            ephemeral: true,
+        });
+    }
+
+    // ================= PANEL: ZIPLOCKER'S GRAPHICS PACK V2 =================
+    if (interaction.isChatInputCommand() && interaction.commandName === "panelgraphicspackv2") {
+        const embed = new EmbedBuilder()
+            .setColor("#000000")
+            .setDescription(
+`# 💫 Ziplocker's Graphics Pack
+
+### The ultimate all-in-one enhancement package for FiveM.
+
+Upgrade your entire GTA V experience with a complete collection of visual improvements, immersive combat effects, realistic audio, and environmental upgrades. Every component has been carefully selected and optimized to work together, creating a polished cinematic experience.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+✨ **What's Included**
+
+• **CoreFX Visual Overhaul**
+A custom-built CoreFX configuration with improved lighting, enhanced reflections, realistic weather, vibrant colors, and cinematic post-processing.
+
+• **Two CoreFX Versions**
+Choose the version that fits your hardware:
+- **Quality Edition** – includes volumetric clouds for the highest visual quality and the most immersive atmosphere.
+- **Performance Edition** – removes volumetric clouds to improve FPS while keeping the same visual style.
+
+• **Blood FX & Ragdoll**
+Improved blood effects, enhanced decals, particles, and more realistic ragdoll reactions during combat.
+
+• **Muzzle Core FX**
+High-quality muzzle flashes, smoke, sparks, shell effects, bullet impacts, and optional tracers for a more realistic combat experience.
+
+• **3 Different Gun Sound Packs**
+Includes three unique weapon sound packs, allowing you to choose the style that fits your gameplay experience.
+
+• **HD Environment Textures**
+A complete texture overhaul replacing most of the game's environmental assets. Includes improved textures for Buildings, Rocks, Vegetation, Beach sand, Dirt, License plates, and various world elements such as Miscellaneous, Nature Props, Railways, Seaside, and Vehicles.
+
+• **Two Road Texture Options**
+Includes two different road variations:
+- **LA Roads**
+- **Vanilla Improved Roads**
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🎯 **Why Choose This Pack**
+
+Everything you need to transform FiveM into a more immersive and cinematic experience.
+
+• Premium graphics
+• Realistic weapon effects
+• Enhanced combat visuals
+• Multiple weapon sound options
+• Improved environmental textures
+• Customizable visual and performance options
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+⚙️ **Easy Installation**
+The pack includes everything required, together with simple installation instructions to get you started within minutes.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+# 💰 Price: $33.99`
+            )
+            .setImage("https://cdn.discordapp.com/attachments/1521243996482175147/1529294199764291614/Frame_6.png?ex=6a6169b6&is=6a601836&hm=2735760ba33560ccdfa4d191723b37d2b83aed2a3648e6eaf75be3bd9ac3a483&")
+            .setFooter({ text: "Official Ziplocker Store • Secure payment via Lava" });
+
+        const row = new ActionRowBuilder().addComponents(
+            new ButtonBuilder()
+                .setCustomId(`buy_${PRODUCT_ID_GRAPHICSPACK_V2}`)
+                .setStyle(ButtonStyle.Success)
+                .setLabel("Buy Now")
+                .setEmoji("💳")
+        );
+
+        await interaction.channel.send({ embeds: [embed], components: [row] });
+
+        return interaction.reply({
+            content: "✅ Panel created.",
+            ephemeral: true,
+        });
+    }
+
+    // ================= PANEL: ZIPLOCKER'S GRAPHICS V2 =================
+    if (interaction.isChatInputCommand() && interaction.commandName === "panelgraphicsv2") {
+        const embed = new EmbedBuilder()
+            .setColor("#FFFFFF")
+            .setDescription(
+`# ✨ Ziplocker's Graphics V2
+
+### A premium visual overhaul created for players who want a cleaner and more immersive FiveM experience.
+
+Graphics V2 focuses entirely on improving the game's visuals through a carefully configured CoreFX setup, bringing better lighting, realistic weather, richer colors, and a cinematic atmosphere without changing gameplay.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+✨ **Features**
+
+• **CoreFX Visual Overhaul**
+A custom CoreFX configuration featuring improved lighting, enhanced reflections, realistic weather, vibrant colors, and cinematic post-processing.
+
+• **Two CoreFX Versions**
+Choose the version that matches your PC:
+- **Quality Edition** – includes volumetric clouds for maximum visual quality and a more immersive atmosphere.
+- **Performance Edition** – disables volumetric clouds for better FPS while maintaining the same visual style.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🎯 **Designed for Visual Quality**
+
+Graphics V2 is made for players who only want to improve the look of their game.
+
+• Cinematic visuals
+• Better lighting
+• Enhanced weather
+• Richer colors
+• Improved atmosphere
+• Optimized performance
+• Two visual options for different hardware
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+⚙️ **Easy Installation**
+Includes everything needed, along with a simple installation guide to get started quickly.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+# 💰 Price: $9.99`
+            )
+            .setImage("https://cdn.discordapp.com/attachments/1521243996482175147/1529294193187360848/Frame_7.png?ex=6a6169b4&is=6a601834&hm=4a7e2ccd75b7fc705eac2dd85bc6570cb9784bde2eb1430f16dc636d5e265266&")
+            .setFooter({ text: "Official Ziplocker Store • Secure payment via Lava" });
+
+        const row = new ActionRowBuilder().addComponents(
+            new ButtonBuilder()
+                .setCustomId(`buy_${PRODUCT_ID_GRAPHICS_V2}`)
+                .setStyle(ButtonStyle.Success)
+                .setLabel("Buy Now")
+                .setEmoji("💳")
         );
 
         await interaction.channel.send({ embeds: [embed], components: [row] });
