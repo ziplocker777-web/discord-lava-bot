@@ -3,11 +3,17 @@ const express = require("express");
 const { recordPurchase, getPurchase } = require("./purchaseStore");
 const { getRolesForProduct, getRolesToRevokeOnCancellation } = require("./roles");
 
-// lava.top event types that mean "the subscription is no longer active".
-// The exact string lava.top sends isn't documented publicly, so we match a
-// few known/likely candidates AND fall back to a loose pattern match below.
-// IMPORTANT: check the "Body:" log the first time a real cancellation comes
-// in and add the exact eventType here if it's not already covered.
+// Список типов событий, которые означают успешную оплату/оформление
+const SUCCESS_EVENT_TYPES = [
+    "payment.success",
+    "invoice.paid",
+    "purchase.success",
+    "subscription.created",
+    "subscription.active",
+    "subscription.renewed"
+];
+
+// Список типов событий, которые означают отмену подписки
 const CANCELLATION_EVENT_TYPES = [
     "subscription.cancelled",
     "subscription.canceled",
@@ -18,15 +24,29 @@ const CANCELLATION_EVENT_TYPES = [
     "subscription.recurring.failed",
 ];
 
+function isPaymentSuccessEvent(event) {
+    const type = (event.eventType || "").toLowerCase();
+    const status = (event.status || "").toLowerCase();
+
+    if (!type) return false;
+
+    // Прямое совпадение по типу события
+    if (SUCCESS_EVENT_TYPES.includes(type)) return true;
+
+    // Резервная проверка: если в событии есть payment/invoice/purchase/subscription И статус указывает на успешную оплату
+    const isPaymentType = type.includes("payment") || type.includes("invoice") || type.includes("purchase") || type.includes("subscription");
+    const isSuccessStatus = status === "completed" || status === "success" || status === "paid" || status === "active";
+
+    return isPaymentType && isSuccessStatus;
+}
+
 function isSubscriptionCancellationEvent(event) {
     const type = (event.eventType || "").toLowerCase();
     if (!type) return false;
 
     if (CANCELLATION_EVENT_TYPES.includes(type)) return true;
 
-    // Loose fallback: anything that mentions "subscription" together with
-    // "cancel"/"failed" is treated as a cancellation, in case lava.top uses
-    // a naming pattern we haven't seen yet.
+    // Loose fallback для отмен
     return type.includes("subscription") && (type.includes("cancel") || type.includes("fail"));
 }
 
@@ -55,7 +75,9 @@ function startWebhookServer(client) {
         const event = req.body;
 
         try {
-            if (event.eventType === "payment.success" && event.status === "completed") {
+            if (isPaymentSuccessEvent(event)) {
+                console.log(`Payment success event received: ${event.eventType}`);
+
                 const email = event.buyer?.email;
                 const discordId = event.clientUtm?.utm_content || null;
 
@@ -72,7 +94,6 @@ function startWebhookServer(client) {
                 }
 
                 if (discordId) {
-                    // Оборачиваем выдачу роли, чтобы ошибка Дискорда не вешала запрос
                     try {
                         await grantRole(client, discordId, event.product?.id);
                     } catch (err) {
@@ -82,16 +103,12 @@ function startWebhookServer(client) {
                     console.warn("Webhook without discordId in clientUtm.utm_content — role not granted automatically.");
                 }
 
-                // ВСЕГДА отвечаем 200 на успешный платеж, чтобы Lava остановила спам
                 return res.sendStatus(200);
             } else if (isSubscriptionCancellationEvent(event)) {
                 console.log(`Subscription cancellation-like event received: ${event.eventType}`);
 
                 const email = event.buyer?.email;
 
-                // clientUtm isn't guaranteed to be present on cancellation
-                // events, so fall back to whatever we stored on the original
-                // purchase.
                 let discordId = event.clientUtm?.utm_content || null;
                 if (!discordId && email) {
                     const purchase = getPurchase(email);
@@ -121,13 +138,11 @@ function startWebhookServer(client) {
 
                 return res.sendStatus(200);
             } else {
-                // Игнорируем другие типы событий с кодом 200
                 console.log(`Event ${event.eventType} ignored.`);
                 return res.sendStatus(200);
             }
         } catch (error) {
             console.error("Critical error inside webhook processing:", error);
-            // Возвращаем 200 даже при ошибке, чтобы Lava не долбила сервер бесконечно
             return res.status(200).send("Webhook received with internal tracking error");
         }
     });
