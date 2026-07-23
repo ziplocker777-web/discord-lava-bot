@@ -1,6 +1,7 @@
 require("dotenv").config();
 const express = require("express");
 const { recordPurchase } = require("./purchaseStore");
+const { getRolesForProduct } = require("./roles");
 
 function checkApiKey(req, res, next) {
     const key = req.header("X-Api-Key");
@@ -46,7 +47,7 @@ function startWebhookServer(client) {
                 if (discordId) {
                     // Оборачиваем выдачу роли, чтобы ошибка Дискорда не вешала запрос
                     try {
-                        await grantRole(client, discordId);
+                        await grantRole(client, discordId, event.product?.id);
                     } catch (err) {
                         console.error("Role grant failed inside Discord:", err.message);
                     }
@@ -75,18 +76,25 @@ function startWebhookServer(client) {
     });
 }
 
-async function grantRole(client, discordId) {
+async function grantRole(client, discordId, productId) {
     const guild = await client.guilds.fetch(process.env.GUILD_ID);
     const member = await guild.members.fetch(discordId);
-    const roleId = process.env.ROLE_ID;
 
-    if (member.roles.cache.has(roleId)) {
-        console.log(`${discordId} already has the role.`);
+    const roleIds = getRolesForProduct(productId);
+
+    if (roleIds.length === 0) {
+        console.warn(`No roles configured for product ${productId} — nothing granted.`);
         return;
     }
 
-    await member.roles.add(roleId);
-    console.log(`Role granted to ${discordId}`);
+    for (const roleId of roleIds) {
+        if (member.roles.cache.has(roleId)) {
+            console.log(`${discordId} already has role ${roleId}.`);
+            continue;
+        }
+        await member.roles.add(roleId);
+        console.log(`Role ${roleId} granted to ${discordId}`);
+    }
 }
 
 module.exports = { startWebhookServer };

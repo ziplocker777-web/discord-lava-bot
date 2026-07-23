@@ -14,8 +14,9 @@ const {
 } = require("discord.js");
 
 const { startWebhookServer } = require("./webhookServer.js");
-const { hasPurchase } = require("./purchaseStore.js");
+const { getPurchase } = require("./purchaseStore.js");
 const { createInvoice } = require("./lavaClient.js");
+const { getRolesForProduct } = require("./roles.js");
 
 const PRODUCT_ID = "04c91dde-254e-45ce-becb-5ab22a86cfca"; // Muzzle Core FX offerId
 const PRODUCT_ID_VISUALS = "70c48693-8412-4b5e-871a-9878fe6bfda5"; // Ziplocker Summer Visuals offerId
@@ -453,7 +454,7 @@ Includes everything needed, along with a simple installation guide to get starte
     // ================= PANEL: MEMBERSHIP (SUBSCRIPTION) =================
     if (interaction.isChatInputCommand() && interaction.commandName === "panelsubscribe") {
         const embed = new EmbedBuilder()
-            .setColor("#FF0000")
+            .setColor("#3DDC84")
             .setDescription(
 `# 💎 Membership
 
@@ -651,25 +652,37 @@ Click the button below and enter the email you used at checkout.`
 
         const email = interaction.fields.getTextInputValue("email").trim().toLowerCase();
 
-        const isPurchased = hasPurchase(email);
+        const purchase = getPurchase(email);
 
-        if (!isPurchased) {
+        if (!purchase) {
             return interaction.editReply({
                 content: "❌ No purchase found for this email.",
             });
         }
 
         try {
-            const roleId = process.env.ROLE_ID;
             const member = interaction.member;
+            const roleIds = getRolesForProduct(purchase.productId);
 
-            if (member.roles.cache.has(roleId)) {
+            if (roleIds.length === 0) {
                 return interaction.editReply({
-                    content: "✅ You already have the role.",
+                    content: "⚠️ No roles are configured for this product. Contact an admin.",
                 });
             }
 
-            await member.roles.add(roleId);
+            const granted = [];
+            for (const roleId of roleIds) {
+                if (!member.roles.cache.has(roleId)) {
+                    await member.roles.add(roleId);
+                    granted.push(roleId);
+                }
+            }
+
+            if (granted.length === 0) {
+                return interaction.editReply({
+                    content: "✅ You already have the role(s).",
+                });
+            }
 
             return interaction.editReply({
                 content: "✅ Verified! Role has been granted.",

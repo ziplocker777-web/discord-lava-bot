@@ -26,7 +26,13 @@ function hasPurchase(email) {
     return Boolean(db[email.toLowerCase()]);
 }
 
+function getPurchase(email) {
+    const db = load();
+    return db[email.toLowerCase()] || null;
+}
+
 module.exports = {
     recordPurchase,
-    hasPurchase
+    hasPurchase,
+    getPurchase
 };
