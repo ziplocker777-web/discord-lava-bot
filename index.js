@@ -454,7 +454,7 @@ Includes everything needed, along with a simple installation guide to get starte
     // ================= PANEL: MEMBERSHIP (SUBSCRIPTION) =================
     if (interaction.isChatInputCommand() && interaction.commandName === "panelsubscribe") {
         const embed = new EmbedBuilder()
-            .setColor("#3DDC84")
+            .setColor("#95ff00")
             .setDescription(
 `# 💎 Membership
 
@@ -464,7 +464,7 @@ One membership. Every visual upgrade.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-🎁 **Included:**
+**Included:**
 
 🎨 All Graphics Packs
 
