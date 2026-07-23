@@ -23,6 +23,7 @@ const PRODUCT_ID_BLOOD = "aa6de8cb-810e-4b81-848c-bc38325ecadc"; // Ziplocker's 
 const PRODUCT_ID_GRAPHICSPACK = "90159b55-e860-4860-803d-c9f49d73fff4"; // Ziplocker Graphics Pack offerId
 const PRODUCT_ID_GRAPHICSPACK_V2 = "98960219-f5e3-4330-a7c1-b86cf318c8db"; // Ziplocker's Graphics Pack V2 offerId
 const PRODUCT_ID_GRAPHICS_V2 = "f4eadbcb-0353-4cb8-a759-e6d471c35c36"; // Ziplocker's Graphics V2 offerId
+const PRODUCT_ID_SUBSCRIBE = "fd9076bc-1285-4fa5-a55d-86657ad32ab5"; // Membership (Subscription ziplocker) offerId
 
 const client = new Client({
     intents: [GatewayIntentBits.Guilds],
@@ -438,6 +439,59 @@ Includes everything needed, along with a simple installation guide to get starte
                 .setCustomId(`buy_${PRODUCT_ID_GRAPHICS_V2}`)
                 .setStyle(ButtonStyle.Success)
                 .setLabel("Buy Now")
+                .setEmoji("💳")
+        );
+
+        await interaction.channel.send({ embeds: [embed], components: [row] });
+
+        return interaction.reply({
+            content: "✅ Panel created.",
+            ephemeral: true,
+        });
+    }
+
+    // ================= PANEL: MEMBERSHIP (SUBSCRIPTION) =================
+    if (interaction.isChatInputCommand() && interaction.commandName === "panelsubscribe") {
+        const embed = new EmbedBuilder()
+            .setColor("#3DDC84")
+            .setDescription(
+`# 💎 Membership
+
+### Unlimited access to the complete graphics library.
+
+One membership. Every visual upgrade.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🎁 **Included:**
+
+🎨 All Graphics Packs
+
+🔥 Muzzle Core FX
+
+🩸 Blood Mod
+
+🖼️ Future Graphics Packs
+
+🔄 Future Updates
+
+📦 Beta Builds
+
+💡 Suggest Features & Vote on Future Updates
+
+👀 Exclusive Sneak Peeks
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+# 💰 Price: $14.99 / month`
+            )
+            .setFooter({ text: "Official Ziplocker Store • Secure payment via Lava" });
+
+        const row = new ActionRowBuilder().addComponents(
+            new ButtonBuilder()
+                .setCustomId(`buy_${PRODUCT_ID_SUBSCRIBE}`)
+                .setStyle(ButtonStyle.Success)
+                .setLabel("Subscribe")
                 .setEmoji("💳")
         );
 
