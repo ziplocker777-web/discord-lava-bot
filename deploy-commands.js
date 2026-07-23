@@ -1,6 +1,6 @@
 require("dotenv").config();
 
-const { REST, Routes, SlashCommandBuilder } = require("discord.js");
+const { REST, Routes, SlashCommandBuilder, PermissionFlagsBits } = require("discord.js");
 
 const commands = [
   new SlashCommandBuilder()
@@ -34,6 +34,17 @@ const commands = [
   new SlashCommandBuilder()
     .setName("getrole")
     .setDescription("Send the role verification panel")
+    .toJSON(),
+  new SlashCommandBuilder()
+    .setName("cancelsubscription")
+    .setDescription("Cancel a member's lava.top subscription and revoke the Membership role")
+    .addStringOption(option =>
+      option
+        .setName("email")
+        .setDescription("Email used at checkout")
+        .setRequired(true)
+    )
+    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
     .toJSON(),
 ];
 

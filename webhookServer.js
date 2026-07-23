@@ -1,7 +1,34 @@
 require("dotenv").config();
 const express = require("express");
-const { recordPurchase } = require("./purchaseStore");
-const { getRolesForProduct } = require("./roles");
+const { recordPurchase, getPurchase } = require("./purchaseStore");
+const { getRolesForProduct, getRolesToRevokeOnCancellation } = require("./roles");
+
+// lava.top event types that mean "the subscription is no longer active".
+// The exact string lava.top sends isn't documented publicly, so we match a
+// few known/likely candidates AND fall back to a loose pattern match below.
+// IMPORTANT: check the "Body:" log the first time a real cancellation comes
+// in and add the exact eventType here if it's not already covered.
+const CANCELLATION_EVENT_TYPES = [
+    "subscription.cancelled",
+    "subscription.canceled",
+    "subscription.recurring.cancelled",
+    "subscription.recurring.canceled",
+    "subscription.failed",
+    "subscription.recurring.payment.failed",
+    "subscription.recurring.failed",
+];
+
+function isSubscriptionCancellationEvent(event) {
+    const type = (event.eventType || "").toLowerCase();
+    if (!type) return false;
+
+    if (CANCELLATION_EVENT_TYPES.includes(type)) return true;
+
+    // Loose fallback: anything that mentions "subscription" together with
+    // "cancel"/"failed" is treated as a cancellation, in case lava.top uses
+    // a naming pattern we haven't seen yet.
+    return type.includes("subscription") && (type.includes("cancel") || type.includes("fail"));
+}
 
 function checkApiKey(req, res, next) {
     const key = req.header("X-Api-Key");
@@ -57,8 +84,44 @@ function startWebhookServer(client) {
 
                 // ВСЕГДА отвечаем 200 на успешный платеж, чтобы Lava остановила спам
                 return res.sendStatus(200);
+            } else if (isSubscriptionCancellationEvent(event)) {
+                console.log(`Subscription cancellation-like event received: ${event.eventType}`);
+
+                const email = event.buyer?.email;
+
+                // clientUtm isn't guaranteed to be present on cancellation
+                // events, so fall back to whatever we stored on the original
+                // purchase.
+                let discordId = event.clientUtm?.utm_content || null;
+                if (!discordId && email) {
+                    const purchase = getPurchase(email);
+                    discordId = purchase?.discordId || null;
+                }
+
+                if (email) {
+                    recordPurchase(email, {
+                        productId: event.product?.id,
+                        productTitle: event.product?.title,
+                        contractId: event.contractId,
+                        timestamp: event.timestamp,
+                        discordId,
+                        status: "cancelled",
+                    });
+                }
+
+                if (discordId) {
+                    try {
+                        await revokeRole(client, discordId);
+                    } catch (err) {
+                        console.error("Role revoke failed inside Discord:", err.message);
+                    }
+                } else {
+                    console.warn("Cancellation webhook without a resolvable discordId — Membership role not revoked automatically.");
+                }
+
+                return res.sendStatus(200);
             } else {
-                // Игнорируем другие типы событий (например, payment.failed) с кодом 200
+                // Игнорируем другие типы событий с кодом 200
                 console.log(`Event ${event.eventType} ignored.`);
                 return res.sendStatus(200);
             }
@@ -97,4 +160,25 @@ async function grantRole(client, discordId, productId) {
     }
 }
 
-module.exports = { startWebhookServer };
+async function revokeRole(client, discordId) {
+    const guild = await client.guilds.fetch(process.env.GUILD_ID);
+    const member = await guild.members.fetch(discordId);
+
+    const roleIds = getRolesToRevokeOnCancellation();
+
+    if (roleIds.length === 0) {
+        console.warn("SUBSCRIBE_ROLE_ID is not configured — nothing to revoke.");
+        return;
+    }
+
+    for (const roleId of roleIds) {
+        if (!member.roles.cache.has(roleId)) {
+            console.log(`${discordId} doesn't have role ${roleId}, nothing to remove.`);
+            continue;
+        }
+        await member.roles.remove(roleId);
+        console.log(`Role ${roleId} revoked from ${discordId}`);
+    }
+}
+
+module.exports = { startWebhookServer, revokeRole };

@@ -13,9 +13,9 @@ const {
     TextInputStyle,
 } = require("discord.js");
 
-const { startWebhookServer } = require("./webhookServer.js");
-const { getPurchase } = require("./purchaseStore.js");
-const { createInvoice } = require("./lavaClient.js");
+const { startWebhookServer, revokeRole } = require("./webhookServer.js");
+const { getPurchase, recordPurchase } = require("./purchaseStore.js");
+const { createInvoice, cancelSubscription } = require("./lavaClient.js");
 const { getRolesForProduct } = require("./roles.js");
 
 const PRODUCT_ID = "04c91dde-254e-45ce-becb-5ab22a86cfca"; // Muzzle Core FX offerId
@@ -530,6 +530,66 @@ Click the button below and enter the email you used at checkout.`
             content: "✅ Panel created.",
             ephemeral: true,
         });
+    }
+
+    // ================= CANCEL SUBSCRIPTION (admin only) =================
+    if (interaction.isChatInputCommand() && interaction.commandName === "cancelsubscription") {
+        await interaction.deferReply({ ephemeral: true });
+
+        const email = interaction.options.getString("email").trim().toLowerCase();
+
+        const purchase = getPurchase(email);
+
+        if (!purchase) {
+            return interaction.editReply({
+                content: `❌ No purchase found for \`${email}\`.`,
+            });
+        }
+
+        if (!purchase.contractId) {
+            return interaction.editReply({
+                content: `⚠️ No contractId stored for \`${email}\` — can't cancel via API. Check purchaseStore.json.`,
+            });
+        }
+
+        try {
+            // 1. Отменяем подписку на стороне lava.top.
+            // purchase.contractId, сохранённый с первого payment.success
+            // вебхука, и есть parentContractId, которого хочет lava.top.
+            await cancelSubscription({
+                contractId: purchase.contractId,
+                email: purchase.email,
+            });
+
+            // 2. Помечаем в локальном хранилище.
+            recordPurchase(email, {
+                ...purchase,
+                status: "cancelled",
+            });
+
+            // 3. Снимаем роль Membership сразу, не дожидаясь вебхука.
+            let roleNote = "";
+            if (purchase.discordId) {
+                try {
+                    await revokeRole(client, purchase.discordId);
+                } catch (err) {
+                    console.error("Role revoke failed:", err.message);
+                    roleNote = "\n⚠️ Subscription cancelled on lava.top, but Discord role removal failed — check bot permissions.";
+                }
+            } else {
+                roleNote = "\n⚠️ No discordId stored for this purchase — role wasn't removed automatically.";
+            }
+
+            return interaction.editReply({
+                content: `✅ Subscription for \`${email}\` cancelled on lava.top.${roleNote}`,
+            });
+
+        } catch (err) {
+            console.error("cancelSubscription failed:", err.response?.data || err.message);
+            return interaction.editReply({
+                content: `⚠️ Couldn't cancel the subscription on lava.top: ${err.response?.data?.message || err.message}`,
+            });
+        }
     }
 
     // ================= BUY BUTTON: choose payment method =================

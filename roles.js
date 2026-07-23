@@ -23,4 +23,14 @@ function getRolesForProduct(productId) {
     return roles;
 }
 
-module.exports = { getRolesForProduct, SUBSCRIPTION_PRODUCT_ID };
+// Roles that should be REMOVED when a subscription is cancelled / a recurring
+// payment fails. We intentionally only strip the Membership role here and
+// keep ROLE_ID (the base "customers" role), since the person still made a
+// past purchase — only their active subscription perk goes away.
+function getRolesToRevokeOnCancellation() {
+    const roles = [];
+    if (process.env.SUBSCRIBE_ROLE_ID) roles.push(process.env.SUBSCRIBE_ROLE_ID);
+    return roles;
+}
+
+module.exports = { getRolesForProduct, getRolesToRevokeOnCancellation, SUBSCRIPTION_PRODUCT_ID };
