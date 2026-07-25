@@ -5,7 +5,8 @@ const API = axios.create({
     baseURL: "https://gate.lava.top/api/v3",
     headers: {
         "X-Api-Key": process.env.LAVA_API_KEY
-    }
+    },
+    timeout: 10000
 });
 
 // Отмена подписки использует другую версию API (v1), сам инвойс создаётся на v3.
@@ -13,8 +14,21 @@ const API_V1 = axios.create({
     baseURL: "https://gate.lava.top/api/v1",
     headers: {
         "X-Api-Key": process.env.LAVA_API_KEY
-    }
+    },
+    timeout: 10000
 });
+
+// Ретрай только для read-запросов (GET /sales). НЕ применяется к createInvoice
+// или cancelSubscription — там повтор после таймаута может задвоить инвойс
+// или отправить лишний DELETE, поэтому те остаются без ретрая.
+async function getWithRetry(url, config, retries = 1) {
+    try {
+        return await API_V1.get(url, config);
+    } catch (err) {
+        if (retries <= 0) throw err;
+        return getWithRetry(url, config, retries - 1);
+    }
+}
 
 // Creates an invoice on lava.top and embeds the Discord ID into clientUtm.utm_content.
 // lava.top echoes clientUtm back in the payment.success webhook, so we can grant the
@@ -47,7 +61,10 @@ const KNOWN_PRODUCT_IDS = require("./products");
 // Статусы, которые lava.top отдаёт в /sales для успешно завершённых продаж.
 // "completed" видели в реальных вебхуках; "success"/"paid"/"active" добавлены
 // на всякий случай (для подписок статус может отличаться от разовых покупок).
-const COMPLETED_STATUSES = ["completed", "success", "paid", "active"];
+// "new" — подтверждённый статус успешной продажи ПОДПИСКИ в этом эндпоинте
+// (пример: lapha97@mail.ru, 100% промокод, $0, статус "new", но по факту
+// активная подписка) — не путать с "ожидает оплаты", тут это конечный статус успеха.
+const COMPLETED_STATUSES = ["completed", "success", "paid", "active", "new"];
 
 // Фоллбек для /getrole на случай, когда в purchaseStore.json нет записи
 // (например, покупка была сделана напрямую на сайте lava.top в обход бота,
@@ -63,35 +80,48 @@ const COMPLETED_STATUSES = ["completed", "success", "paid", "active"];
 // нормальный webhook (например при продлении), contractId допишется.
 async function findCompletedSaleByEmail(email) {
     const target = email.trim().toLowerCase();
+    const entries = Object.entries(KNOWN_PRODUCT_IDS);
 
-    for (const [title, productId] of Object.entries(KNOWN_PRODUCT_IDS)) {
-        try {
-            const { data } = await API_V1.get(`/sales/${productId}`, {
-                params: { page: 0, size: 100 },
-            });
+    // Запросы по всем продуктам идут параллельно (не по одному последовательно) —
+    // при 7 продуктах это разница между ~1 таймаутом и ~7 таймаутами, если lava.top
+    // подвисает. Каждый запрос — с 1 ретраем на случай единичного сетевого сбоя.
+    const results = await Promise.allSettled(
+        entries.map(([title, productId]) =>
+            getWithRetry(`/sales/${productId}`, { params: { page: 0, size: 100 } }).then(
+                ({ data }) => ({ title, productId, data })
+            )
+        )
+    );
 
-            const match = (data.items || []).find((item) => {
-                const buyerEmail = (item.buyer?.email || "").trim().toLowerCase();
-                const status = (item.status || "").trim().toLowerCase();
-                return buyerEmail === target && COMPLETED_STATUSES.includes(status);
-            });
+    for (let i = 0; i < results.length; i++) {
+        const result = results[i];
+        const [title, productId] = entries[i];
 
-            if (match) {
-                return {
-                    productId: match.product?.id || productId,
-                    productTitle: match.product?.name || title,
-                    status: match.status,
-                    created: match.created,
-                    contractId: match.contractId || null,
-                };
-            }
-        } catch (err) {
+        if (result.status === "rejected") {
+            const err = result.reason;
             console.error(
                 `findCompletedSaleByEmail: lookup failed for ${title} (${productId}):`,
                 err.response?.status,
                 err.response?.data || err.message
             );
-            // Продолжаем проверять остальные продукты, даже если один запрос упал.
+            continue; // Продолжаем проверять остальные продукты, даже если один запрос упал.
+        }
+
+        const { data } = result.value;
+        const match = (data.items || []).find((item) => {
+            const buyerEmail = (item.buyer?.email || "").trim().toLowerCase();
+            const status = (item.status || "").trim().toLowerCase();
+            return buyerEmail === target && COMPLETED_STATUSES.includes(status);
+        });
+
+        if (match) {
+            return {
+                productId: match.product?.id || productId,
+                productTitle: match.product?.name || title,
+                status: match.status,
+                created: match.created,
+                contractId: match.contractId || null,
+            };
         }
     }
 

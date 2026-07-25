@@ -52,12 +52,15 @@ function isSubscriptionCancellationEvent(event) {
 
 function checkApiKey(req, res, next) {
     const key = req.header("X-Api-Key");
+    const stamp = new Date().toISOString();
 
     if (!key) {
+        console.warn(`[webhook] REJECTED 401 (missing key) — ip: ${req.ip}, time: ${stamp}`);
         return res.status(401).send("Missing API Key");
     }
 
     if (key !== process.env.WEBHOOK_API_KEY) {
+        console.warn(`[webhook] REJECTED 401 (invalid key, got "${key.slice(0, 4)}...", len ${key.length}) — ip: ${req.ip}, time: ${stamp}`);
         return res.status(401).send("Invalid API Key");
     }
 
@@ -68,7 +71,25 @@ function startWebhookServer(client) {
     const app = express();
     app.use(express.json());
 
-    app.post("/webhook/lava", checkApiKey, async (req, res) => {
+    // express.json() кидает ошибку синхронно ДО того, как запрос доходит до
+    // роута/логгера ниже — без этого обработчика битый JSON от клиента
+    // (в т.ч. потенциально от lava.top) проходил бы вообще без единой
+    // строки в логах, просто молча получая 400.
+    app.use((err, req, res, next) => {
+        if (err?.type === "entity.parse.failed" || err instanceof SyntaxError) {
+            console.error(
+                `[webhook] JSON PARSE FAILED — ip: ${req.ip}, time: ${new Date().toISOString()}, ` +
+                `content-length: ${req.headers["content-length"] || "?"}, error: ${err.message}`
+            );
+            return res.status(400).send("Invalid JSON");
+        }
+        next(err);
+    });
+
+    app.post("/webhook/lava", (req, res, next) => {
+        console.log(`[webhook] incoming — ip: ${req.ip}, hasApiKey: ${Boolean(req.header("X-Api-Key"))}, time: ${new Date().toISOString()}`);
+        next();
+    }, checkApiKey, async (req, res) => {
         console.log("========== WEBHOOK ==========");
         console.log("Body:", JSON.stringify(req.body, null, 2));
 
