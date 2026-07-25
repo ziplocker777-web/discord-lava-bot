@@ -744,6 +744,28 @@ Click the button below and enter the email you used at checkout.`
             });
         }
 
+        // Защита: если этот email уже привязан к другому Discord-аккаунту
+        // (кто-то другой раньше верифицировался этим же email), не даём
+        // выдать роль текущему пользователю — иначе один email сможет
+        // раздать роль всем, кто его узнает.
+        if (purchase.discordId && purchase.discordId !== interaction.user.id) {
+            console.warn(
+                `/getrole: email ${email} already claimed by discordId ${purchase.discordId}, ` +
+                `but was attempted by a different user (${interaction.user.id}) — blocked.`
+            );
+            return interaction.editReply({
+                content: "❌ This email is already linked to a different Discord account. If this is a mistake, please contact an admin.",
+            });
+        }
+
+        // Если запись есть, но discordId ещё не привязан (например, webhook
+        // пришёл без clientUtm.utm_content), закрепляем email за первым,
+        // кто успешно верифицировался — это включает защиту выше и на будущее.
+        if (!purchase.discordId) {
+            purchase = { ...purchase, discordId: interaction.user.id };
+            recordPurchase(email, purchase);
+        }
+
         try {
             const member = interaction.member;
             const roleIds = getRolesForProduct(purchase.productId);
