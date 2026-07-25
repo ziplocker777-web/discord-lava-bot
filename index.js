@@ -740,7 +740,7 @@ Click the button below and enter the email you used at checkout.`
 
         if (!purchase) {
             return interaction.editReply({
-                content: "❌ No purchase found for this email.",
+                content: "❌ No purchase found for this email.\n\nIf you paid directly on the lava.top website (not through a button here in Discord), our system can't verify it automatically — please open a ticket in #ticket with your email and a payment screenshot, and we'll grant the role manually.",
             });
         }
 
@@ -785,20 +785,24 @@ Click the button below and enter the email you used at checkout.`
             }
 
             // Если покупку нашли через фоллбек, а не через webhook, у нас
-            // может не быть contractId — предупредим, что для подписки
-            // отмена может потребовать ручного вмешательства администратора.
-            const contractNote = usedFallback && !purchase.contractId
-                ? "\n⚠️ This purchase was verified directly with lava.top (no webhook was received for it). If it's a subscription, cancellation may need admin help since we don't have a contractId on file yet."
-                : "";
+            // может не быть contractId — это касается будущей отмены подписки
+            // и никак не покупателя, поэтому только в лог для админа, не в
+            // ответ пользователю.
+            if (usedFallback && !purchase.contractId) {
+                console.warn(
+                    `/getrole: ${email} verified via lava.top fallback without a contractId — ` +
+                    `if this is a subscription, /cancelsubscription may need manual admin lookup until a webhook arrives.`
+                );
+            }
 
             if (granted.length === 0) {
                 return interaction.editReply({
-                    content: `✅ You already have the role(s).${contractNote}`,
+                    content: `✅ You already have the role(s).`,
                 });
             }
 
             return interaction.editReply({
-                content: `✅ Verified! Role has been granted.${contractNote}`,
+                content: `✅ Verified! Role has been granted.`,
             });
 
         } catch (err) {
