@@ -15,7 +15,7 @@ const {
 
 const { startWebhookServer, revokeRole } = require("./webhookServer.js");
 const { getPurchase, recordPurchase } = require("./purchaseStore.js");
-const { createInvoice, cancelSubscription } = require("./lavaClient.js");
+const { createInvoice, cancelSubscription, findCompletedSaleByEmail } = require("./lavaClient.js");
 const { getRolesForProduct } = require("./roles.js");
 
 const PRODUCT_ID = "04c91dde-254e-45ce-becb-5ab22a86cfca"; // Muzzle Core FX offerId
@@ -712,7 +712,31 @@ Click the button below and enter the email you used at checkout.`
 
         const email = interaction.fields.getTextInputValue("email").trim().toLowerCase();
 
-        const purchase = getPurchase(email);
+        let purchase = getPurchase(email);
+        let usedFallback = false;
+
+        if (!purchase) {
+            // Локальной записи нет — возможно, оплата прошла напрямую на
+            // сайте lava.top в обход бота, и webhook либо не пришёл, либо
+            // не содержал discordId. Спрашиваем lava.top API напрямую по
+            // всем известным продуктам, прежде чем сдаваться.
+            try {
+                const sale = await findCompletedSaleByEmail(email);
+                if (sale) {
+                    purchase = {
+                        productId: sale.productId,
+                        productTitle: sale.productTitle,
+                        contractId: sale.contractId,
+                        discordId: interaction.user.id,
+                        email,
+                    };
+                    recordPurchase(email, purchase);
+                    usedFallback = true;
+                }
+            } catch (err) {
+                console.error("findCompletedSaleByEmail failed inside /getrole:", err.message);
+            }
+        }
 
         if (!purchase) {
             return interaction.editReply({
@@ -738,14 +762,21 @@ Click the button below and enter the email you used at checkout.`
                 }
             }
 
+            // Если покупку нашли через фоллбек, а не через webhook, у нас
+            // может не быть contractId — предупредим, что для подписки
+            // отмена может потребовать ручного вмешательства администратора.
+            const contractNote = usedFallback && !purchase.contractId
+                ? "\n⚠️ This purchase was verified directly with lava.top (no webhook was received for it). If it's a subscription, cancellation may need admin help since we don't have a contractId on file yet."
+                : "";
+
             if (granted.length === 0) {
                 return interaction.editReply({
-                    content: "✅ You already have the role(s).",
+                    content: `✅ You already have the role(s).${contractNote}`,
                 });
             }
 
             return interaction.editReply({
-                content: "✅ Verified! Role has been granted.",
+                content: `✅ Verified! Role has been granted.${contractNote}`,
             });
 
         } catch (err) {

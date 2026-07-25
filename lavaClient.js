@@ -42,6 +42,62 @@ async function createInvoice({ email, offerId, discordId, currency = "USD", paym
     return data; // expect data.paymentUrl and data.id
 }
 
+const KNOWN_PRODUCT_IDS = require("./products");
+
+// Статусы, которые lava.top отдаёт в /sales для успешно завершённых продаж.
+// "completed" видели в реальных вебхуках; "success"/"paid"/"active" добавлены
+// на всякий случай (для подписок статус может отличаться от разовых покупок).
+const COMPLETED_STATUSES = ["completed", "success", "paid", "active"];
+
+// Фоллбек для /getrole на случай, когда в purchaseStore.json нет записи
+// (например, покупка была сделана напрямую на сайте lava.top в обход бота,
+// и webhook либо не пришёл, либо не содержал clientUtm с discordId).
+//
+// Проходит по всем известным продуктам (см. products.js) и ищет завершённую
+// продажу с этим email. Возвращает null, если ничего не нашлось ни в одном
+// продукте, либо объект с данными продажи.
+//
+// ВНИМАНИЕ: /sales в нашем тестировании не возвращает contractId — то есть
+// для найденной таким образом подписки может не быть contractId, нужного
+// для cancelSubscription(). Это нормально: как только придёт первый
+// нормальный webhook (например при продлении), contractId допишется.
+async function findCompletedSaleByEmail(email) {
+    const target = email.trim().toLowerCase();
+
+    for (const [title, productId] of Object.entries(KNOWN_PRODUCT_IDS)) {
+        try {
+            const { data } = await API_V1.get(`/sales/${productId}`, {
+                params: { page: 0, size: 100 },
+            });
+
+            const match = (data.items || []).find((item) => {
+                const buyerEmail = (item.buyer?.email || "").trim().toLowerCase();
+                const status = (item.status || "").trim().toLowerCase();
+                return buyerEmail === target && COMPLETED_STATUSES.includes(status);
+            });
+
+            if (match) {
+                return {
+                    productId: match.product?.id || productId,
+                    productTitle: match.product?.name || title,
+                    status: match.status,
+                    created: match.created,
+                    contractId: match.contractId || null,
+                };
+            }
+        } catch (err) {
+            console.error(
+                `findCompletedSaleByEmail: lookup failed for ${title} (${productId}):`,
+                err.response?.status,
+                err.response?.data || err.message
+            );
+            // Продолжаем проверять остальные продукты, даже если один запрос упал.
+        }
+    }
+
+    return null;
+}
+
 // Отменяет подписку на lava.top.
 // contractId здесь — это parentContractId: contractId ПЕРВОГО успешного
 // платежа по подписке. Он не меняется при последующих списаниях, поэтому
@@ -55,4 +111,4 @@ async function cancelSubscription({ contractId, email }) {
     return data;
 }
 
-module.exports = { createInvoice, cancelSubscription };
+module.exports = { createInvoice, cancelSubscription, findCompletedSaleByEmail };
