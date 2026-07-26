@@ -13,12 +13,21 @@ const SUCCESS_EVENT_TYPES = [
     "subscription.renewed"
 ];
 
-// Список типов событий, которые означают отмену подписки
-const CANCELLATION_EVENT_TYPES = [
+// Реальная, финальная отмена подписки — тут роль действительно снимаем.
+const FINAL_CANCELLATION_EVENT_TYPES = [
     "subscription.cancelled",
     "subscription.canceled",
     "subscription.recurring.cancelled",
     "subscription.recurring.canceled",
+];
+
+// Неудачная попытка списания — НЕ обязательно финал. По FAQ lava.top, при
+// неудачном списании будет ещё 2 попытки (+8ч, +24ч), и только если
+// последняя тоже провалится — подписка отменяется сама (тогда прилетит уже
+// событие из FINAL_CANCELLATION_EVENT_TYPES выше). Поэтому тут только лог
+// для видимости, роль НЕ трогаем — иначе снимем её уже на первой попытке,
+// хотя у человека может пройти вторая/третья.
+const RENEWAL_FAILURE_EVENT_TYPES = [
     "subscription.failed",
     "subscription.recurring.payment.failed",
     "subscription.recurring.failed",
@@ -40,14 +49,23 @@ function isPaymentSuccessEvent(event) {
     return isPaymentType && isSuccessStatus;
 }
 
-function isSubscriptionCancellationEvent(event) {
+function isFinalCancellationEvent(event) {
     const type = (event.eventType || "").toLowerCase();
     if (!type) return false;
 
-    if (CANCELLATION_EVENT_TYPES.includes(type)) return true;
+    if (FINAL_CANCELLATION_EVENT_TYPES.includes(type)) return true;
 
-    // Loose fallback для отмен
-    return type.includes("subscription") && (type.includes("cancel") || type.includes("fail"));
+    // Loose fallback — только "cancel", "fail" сюда намеренно не входит.
+    return type.includes("subscription") && type.includes("cancel");
+}
+
+function isRenewalFailureEvent(event) {
+    const type = (event.eventType || "").toLowerCase();
+    if (!type) return false;
+
+    if (RENEWAL_FAILURE_EVENT_TYPES.includes(type)) return true;
+
+    return type.includes("subscription") && type.includes("fail") && !type.includes("cancel");
 }
 
 function checkApiKey(req, res, next) {
@@ -125,7 +143,18 @@ function startWebhookServer(client) {
                 }
 
                 return res.sendStatus(200);
-            } else if (isSubscriptionCancellationEvent(event)) {
+            } else if (isRenewalFailureEvent(event)) {
+                // Не финал — просто попытка списания не прошла, у lava.top
+                // в запасе ещё 1-2 попытки (+8ч, +24ч). Роль НЕ трогаем,
+                // только фиксируем в логах на случай, если понадобится
+                // отследить паттерн (например, если один и тот же человек
+                // проваливает попытку за попыткой).
+                console.warn(
+                    `Renewal payment attempt failed (not cancelling yet): ${event.eventType}, ` +
+                    `buyer: ${event.buyer?.email || "?"}, errorMessage: ${event.errorMessage || "?"}`
+                );
+                return res.sendStatus(200);
+            } else if (isFinalCancellationEvent(event)) {
                 console.log(`Subscription cancellation-like event received: ${event.eventType}`);
 
                 const email = event.buyer?.email;
