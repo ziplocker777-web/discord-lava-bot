@@ -206,7 +206,11 @@ function startWebhookServer(client) {
 
 async function grantRole(client, discordId, productId) {
     const guild = await client.guilds.fetch(process.env.GUILD_ID);
-    const member = await guild.members.fetch(discordId);
+    // force: true — discord.js по умолчанию отдаёт участника из кэша, если он
+    // там уже есть, и НЕ делает свежий запрос к API. Если роли менялись не
+    // через этого бота (вручную в Discord, или другим процессом), кэш может
+    // быть устаревшим — тогда member.roles.cache ниже врёт.
+    const member = await guild.members.fetch({ user: discordId, force: true });
 
     const roleIds = getRolesForProduct(productId);
 
@@ -227,7 +231,7 @@ async function grantRole(client, discordId, productId) {
 
 async function revokeRole(client, discordId) {
     const guild = await client.guilds.fetch(process.env.GUILD_ID);
-    const member = await guild.members.fetch(discordId);
+    const member = await guild.members.fetch({ user: discordId, force: true });
 
     const roleIds = getRolesToRevokeOnCancellation();
 
