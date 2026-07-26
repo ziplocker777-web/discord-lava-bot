@@ -121,15 +121,24 @@ function startWebhookServer(client) {
                 const discordId = event.clientUtm?.utm_content || null;
 
                 if (email) {
+                    // На событии subscription.recurring.payment.success у lava.top
+                    // есть ДВА разных id: event.contractId — это контракт именно
+                    // ЭТОГО списания (новый на каждый месяц), а event.parentContractId
+                    // — оригинальный контракт подписки, который и нужен для
+                    // cancelSubscription(). На первом payment.success (initial)
+                    // parentContractId не существует — там event.contractId и есть
+                    // тот самый "родительский" id, который дальше не должен меняться.
+                    const contractIdToStore = event.parentContractId || event.contractId;
+
                     recordPurchase(email, {
                         productId: event.product?.id,
                         productTitle: event.product?.title,
-                        contractId: event.contractId,
+                        contractId: contractIdToStore,
                         timestamp: event.timestamp,
                         discordId
                     });
 
-                    console.log(`Purchase recorded for ${email} (discordId: ${discordId || "—"})`);
+                    console.log(`Purchase recorded for ${email} (discordId: ${discordId || "—"}, contractId: ${contractIdToStore})`);
                 }
 
                 if (discordId) {
