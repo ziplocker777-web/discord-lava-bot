@@ -210,7 +210,7 @@ Numerous environmental and damage-related textures and effects have also been re
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-# 💰 Price: $8.99`
+# 💰 Price: $6.99`
             )
             .setImage("https://cdn.discordapp.com/attachments/1521243996482175147/1525163948477775992/Frame_671.png?ex=6a55061d&is=6a53b49d&hm=068378d1f2ed688a402dcda139fdad28e58ce8912a31dfb272af6e8037f26d6a&")
             .setFooter({ text: "Official Ziplocker Store • Secure payment via Lava" });
@@ -280,7 +280,7 @@ The pack includes everything you need, along with installation instructions to g
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-# 💰 Price: $29.99`
+# 💰 Price: $21.99`
             )
             .setImage("https://cdn.discordapp.com/attachments/1521243996482175147/1526690275051831367/Frame_1.png?ex=6a57f09e&is=6a569f1e&hm=3b80d25bace53a137c3122c7fe1eea0417f388fea1c6ccbe254c4349e513446c&")
             .setFooter({ text: "Official Ziplocker Store • Secure payment via Lava" });
@@ -366,7 +366,7 @@ The pack includes everything required, together with simple installation instruc
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-# 💰 Price: $33.99`
+# 💰 Price: $24.99`
             )
             .setImage("https://cdn.discordapp.com/attachments/1521243996482175147/1529294199764291614/Frame_6.png?ex=6a6169b6&is=6a601836&hm=2735760ba33560ccdfa4d191723b37d2b83aed2a3648e6eaf75be3bd9ac3a483&")
             .setFooter({ text: "Official Ziplocker Store • Secure payment via Lava" });
@@ -485,7 +485,7 @@ One membership. Every visual upgrade.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-# 💰 Price: $14.99 / month`
+# 💰 Price: $9.99 / month`
             )
             .setFooter({ text: "Official Ziplocker Store • Secure payment via Lava" });
 
