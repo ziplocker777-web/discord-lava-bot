@@ -41,7 +41,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
     // ================= PANEL =================
     if (interaction.isChatInputCommand() && interaction.commandName === "panel") {
         const embed = new EmbedBuilder()
-            .setColor("#3DDC84")
+            .setColor("#ED4245")
             .setDescription(
 `# 💥 Muzzle Core FX
 
@@ -51,14 +51,23 @@ Muzzle Core FX replaces outdated weapon effects with cinematic muzzle flashes, r
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-🛠️ **NEW: Ziplocker's Workshop — Built-in Configurator**
+🛠️ **Muzzle Core Configurator**
 Every effect is now fully adjustable through its own standalone app — no CodeWalker, no manual XML editing. Pick a weapon category, drag a few sliders, hit BUILD, done.
 
-• **Per-Weapon Tuning** — independent controls for Pistol, SMG, Rifle, and Shotgun & Sniper, plus global tracer/barrel/distortion/smoke/blood settings
-• **Live Preview** — hover any flash variant before picking it
-• **Vanilla-Safe Defaults** — every slider starts at the original look; change only what you want
-• **Presets** — save your setup and keep editing later, or reset instantly
-• **One-Click Build** — rebuilds your MuzzleCoreFX.rpf, ready to drop into your stream folder
+• **Per-Weapon Tuning**
+Independent controls for Pistol, SMG, Rifle, and Shotgun & Sniper, plus global tracer/barrel/distortion/smoke/blood settings.
+
+• **Live Preview**
+Hover any flash variant before picking it.
+
+• **Vanilla-Safe Defaults**
+Every slider starts at the original look; change only what you want.
+
+• **Presets**
+Save your setup and keep editing later, or reset instantly.
+
+• **One-Click Build**
+Rebuilds your MuzzleCoreFX.rpf, ready to drop into your stream folder.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━
 
