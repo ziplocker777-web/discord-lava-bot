@@ -52,6 +52,7 @@ Muzzle Core FX replaces outdated weapon effects with cinematic muzzle flashes, r
 ━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 🛠️ **Muzzle Core Configurator**
+
 Every effect is now fully adjustable through its own standalone app — no CodeWalker, no manual XML editing. Pick a weapon category, drag a few sliders, hit BUILD, done.
 
 • **Per-Weapon Tuning**
