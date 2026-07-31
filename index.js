@@ -45,13 +45,27 @@ client.on(Events.InteractionCreate, async (interaction) => {
             .setDescription(
 `# 💥 Muzzle Core FX
 
-### Modernize every firefight in GTA V with a complete weapon particle overhaul.
+### Modernize every firefight in GTA V with a complete weapon particle overhaul — now with a full visual configurator.
 
 Muzzle Core FX replaces outdated weapon effects with cinematic muzzle flashes, realistic gun smoke, enhanced impact effects, shell casings and tracers. Built directly on GTA V's particle system, it delivers a clean, seamless upgrade without modifying weapon stats or relying on outdated \`weapons.meta\` replacements.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━
 
+🛠️ **NEW: Ziplocker's Workshop — Built-in Configurator**
+Every effect is now fully adjustable through its own standalone app — no CodeWalker, no manual XML editing. Pick a weapon category, drag a few sliders, hit BUILD, done.
+
+• **Per-Weapon Tuning** — independent controls for Pistol, SMG, Rifle, and Shotgun & Sniper, plus global tracer/barrel/distortion/smoke/blood settings
+• **Live Preview** — hover any flash variant before picking it
+• **Vanilla-Safe Defaults** — every slider starts at the original look; change only what you want
+• **Presets** — save your setup and keep editing later, or reset instantly
+• **One-Click Build** — rebuilds your MuzzleCoreFX.rpf, ready to drop into your stream folder
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━
+
 🔥 **Features:**
+
+• **Fully Customizable**
+Adjust every flash, spark, smoke and tracer parameter yourself with the included configurator.
 
 • **Engine-Level Particle Overhaul**
 Built directly into GTA V's particle system for maximum compatibility. No \`weapons.meta\` edits, no weapon stat conflicts.
@@ -63,10 +77,10 @@ Works seamlessly with vanilla, DLC and supported custom add-on weapons.
 Includes separate, fully optimized versions for both Singleplayer and FiveM.
 
 • **Tracer & Non-Tracer Options**
-Choose between realistic bullet tracers or a clean, tracer-free experience.
+Choose between realistic bullet tracers or a clean, tracer-free experience — or tune it yourself.
 
 • **Cinematic Muzzle Flashes**
-Custom flash cores built from real firearm references for a modern, realistic appearance.
+Custom flash cores built from real firearm references, with multiple variants to choose from.
 
 • **Volumetric Gun Smoke**
 Dense smoke that lingers naturally and reacts to muzzle flashes and lighting.
