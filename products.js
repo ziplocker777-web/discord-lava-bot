@@ -13,4 +13,5 @@ module.exports = {
     "Ziplocker's Blood FX": "6440f2c3-98bf-4f24-8684-fa124c74d5c4",
     "Ziplocker Summer Visuals": "f653e37f-59aa-4ba7-825a-53551a57f960",
     "Muzzle Core FX": "8f45204c-0a4f-4912-ada0-f822705ca301",
+    "Muzzle Core FX | Flash Collection": "24ad821c-8819-4643-8d24-64c309d27970",
 };

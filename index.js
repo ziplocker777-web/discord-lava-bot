@@ -26,6 +26,7 @@ const PRODUCT_ID_GRAPHICSPACK = "90159b55-e860-4860-803d-c9f49d73fff4"; // Ziplo
 const PRODUCT_ID_GRAPHICSPACK_V2 = "98960219-f5e3-4330-a7c1-b86cf318c8db"; // Ziplocker's Graphics Pack V2 offerId
 const PRODUCT_ID_GRAPHICS_V2 = "f4eadbcb-0353-4cb8-a759-e6d471c35c36"; // Ziplocker's Graphics V2 offerId
 const PRODUCT_ID_SUBSCRIBE = "fd9076bc-1285-4fa5-a55d-86657ad32ab5"; // Membership (Subscription ziplocker) offerId
+const PRODUCT_ID_FLASHCOLLECTION = "c993d7c1-fe58-4ea6-9cdb-6b9f0128edc2"; // Muzzle Core FX | Flash Collection offerId (тот же продукт, что раньше был Variant III)
 
 const client = new Client({
     intents: [GatewayIntentBits.Guilds],
@@ -186,6 +187,51 @@ Pair it with Muzzle Core FX to upgrade both your graphics and weapon effects.
         const row = new ActionRowBuilder().addComponents(
             new ButtonBuilder()
                 .setCustomId(`buy_${PRODUCT_ID_VISUALS}`)
+                .setStyle(ButtonStyle.Success)
+                .setLabel("Buy Now")
+                .setEmoji("💳")
+        );
+
+        await interaction.channel.send({ embeds: [embed], components: [row] });
+
+        return interaction.reply({
+            content: "✅ Panel created.",
+            ephemeral: true,
+        });
+    }
+
+    // ================= PANEL: MUZZLE CORE FX | FLASH COLLECTION =================
+    if (interaction.isChatInputCommand() && interaction.commandName === "panelflashcollection") {
+        const embed = new EmbedBuilder()
+            .setColor("#3DDC84")
+            .setDescription(
+`# ⚡ Muzzle Core FX | Flash Collection
+
+### Expand your arsenal with four brand-new cinematic muzzle flash textures.
+
+Flash Collection introduces 4 new high-quality muzzle flash variants, fully integrated into the Muzzle Core Configurator for instant preview and one-click selection.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🔥 **Includes**
+
+• 4 New Muzzle Flash Textures
+• Instant Preview in the Configurator
+• One-Click Selection
+• Story Mode & FiveM Support
+• Compatible with Existing Presets
+
+Choose your favorite flash and rebuild your configuration in seconds.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+# 💰 Price: $5.00`
+            )
+            .setFooter({ text: "Official Ziplocker Store • Secure payment via Lava" });
+
+        const row = new ActionRowBuilder().addComponents(
+            new ButtonBuilder()
+                .setCustomId(`buy_${PRODUCT_ID_FLASHCOLLECTION}`)
                 .setStyle(ButtonStyle.Success)
                 .setLabel("Buy Now")
                 .setEmoji("💳")
