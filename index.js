@@ -27,6 +27,7 @@ const PRODUCT_ID_GRAPHICSPACK_V2 = "98960219-f5e3-4330-a7c1-b86cf318c8db"; // Zi
 const PRODUCT_ID_GRAPHICS_V2 = "f4eadbcb-0353-4cb8-a759-e6d471c35c36"; // Ziplocker's Graphics V2 offerId
 const PRODUCT_ID_SUBSCRIBE = "fd9076bc-1285-4fa5-a55d-86657ad32ab5"; // Membership (Subscription ziplocker) offerId
 const PRODUCT_ID_FLASHCOLLECTION = "c993d7c1-fe58-4ea6-9cdb-6b9f0128edc2"; // Muzzle Core FX | Flash Collection offerId (тот же продукт, что раньше был Variant III)
+const PRODUCT_ID_AUDIO = "783191f9-2802-4cf7-93ea-1caf75b28403"; // Complete Audio Overhaul offerId
 
 const client = new Client({
     intents: [GatewayIntentBits.Guilds],
@@ -232,6 +233,93 @@ Choose your favorite flash and rebuild your configuration in seconds.
         const row = new ActionRowBuilder().addComponents(
             new ButtonBuilder()
                 .setCustomId(`buy_${PRODUCT_ID_FLASHCOLLECTION}`)
+                .setStyle(ButtonStyle.Success)
+                .setLabel("Buy Now")
+                .setEmoji("💳")
+        );
+
+        await interaction.channel.send({ embeds: [embed], components: [row] });
+
+        return interaction.reply({
+            content: "✅ Panel created.",
+            ephemeral: true,
+        });
+    }
+
+    // ================= PANEL: COMPLETE AUDIO OVERHAUL =================
+    if (interaction.isChatInputCommand() && interaction.commandName === "panelaudio") {
+        const embed = new EmbedBuilder()
+            .setColor("#3DDC84")
+            .setDescription(
+`# 🔊 Complete Audio Overhaul
+
+Redefine the way GTA V sounds with a complete overhaul of weapon and environmental audio - featuring three unique sound variants included in one package.
+
+Complete Audio Overhaul replaces GTA V's outdated audio with powerful, immersive weapon sounds while also enhancing the sounds of the world around you. Every firefight feels heavier, every vehicle sounds more alive, and every shot carries realistic distance and echo.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🎧 **Included Sound Variants**
+Your purchase includes three complete sound packs:
+
+• **Variant I**
+A balanced mix designed for everyone. Clean, realistic audio with comfortable volume levels.
+
+• **Variant II**
+A louder, punchier mix for players who enjoy more aggressive weapon sounds.
+
+• **Variant III**
+The loudest and most powerful version, made for players who want maximum impact and intensity.
+
+Switch between them anytime and choose the one that fits your preference.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🔥 **Features**
+
+• **Completely Reworked Weapon Audio**
+Brand-new firing sounds for pistols and carbines, carefully balanced for a satisfying and realistic experience.
+
+• **Redesigned Distant Gunshots**
+Completely new long-distance weapon sounds that make firefights feel much more immersive.
+
+• **Enhanced Gunshot Echo**
+Improved environmental echoes for a larger, more realistic sound without becoming overwhelming.
+
+• **New Shell Casing Sounds**
+Redesigned shell casing audio with proper volume balance.
+
+• **Improved Bullet Impact Sounds**
+New hit sounds for bullets striking different surfaces.
+
+• **Vehicle Audio Improvements**
+Updated engine start sounds, tire audio, sirens, and various vehicle-related effects.
+
+• **Immersive World Audio**
+Numerous environmental sounds have been reworked to create a more cohesive and realistic atmosphere.
+
+• **Story Mode & FiveM Compatible**
+Works in both Singleplayer and FiveM.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+💿 **Includes**
+
+• Variant I
+• Variant II
+• Variant III
+
+All three sound packs are included with a single purchase.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+# 💰 Price: $6.99`
+            )
+            .setFooter({ text: "Official Ziplocker Store • Secure payment via Lava" });
+
+        const row = new ActionRowBuilder().addComponents(
+            new ButtonBuilder()
+                .setCustomId(`buy_${PRODUCT_ID_AUDIO}`)
                 .setStyle(ButtonStyle.Success)
                 .setLabel("Buy Now")
                 .setEmoji("💳")

@@ -14,4 +14,5 @@ module.exports = {
     "Ziplocker Summer Visuals": "f653e37f-59aa-4ba7-825a-53551a57f960",
     "Muzzle Core FX": "8f45204c-0a4f-4912-ada0-f822705ca301",
     "Muzzle Core FX | Flash Collection": "24ad821c-8819-4643-8d24-64c309d27970",
+    "Complete Audio Overhaul": "95ebb1eb-8cf4-4ea7-9cbc-3a80dfa565f7",
 };
