@@ -249,7 +249,7 @@ Choose your favorite flash and rebuild your configuration in seconds.
     // ================= PANEL: COMPLETE AUDIO OVERHAUL =================
     if (interaction.isChatInputCommand() && interaction.commandName === "panelaudio") {
         const embed = new EmbedBuilder()
-            .setColor("#3DDC84")
+            .setColor("##FFFFFF")
             .setDescription(
 `# 🔊 Complete Audio Overhaul
 
