@@ -17,7 +17,7 @@ const { startWebhookServer, revokeRole, WATERMARKED_PRODUCT_IDS } = require("./w
 const { getPurchase, recordPurchase } = require("./purchaseStore.js");
 const { isRefunded } = require("./refundedEmails.js");
 const { createInvoice, cancelSubscription, findCompletedSaleByEmail } = require("./lavaClient.js");
-const { getRolesForProduct } = require("./roles.js");
+const { getRolesForProduct, SUBSCRIPTION_PRODUCT_ID } = require("./roles.js");
 const { deliverPurchase } = require("./delivery.js");
 
 const PRODUCT_ID = "04c91dde-254e-45ce-becb-5ab22a86cfca"; // Muzzle Core FX offerId
@@ -140,10 +140,21 @@ async function verifyPurchaseAndDeliver(interaction, email) {
                     productId: purchase.productId,
                     productTitle: purchase.productTitle,
                 });
+
+                const isSubscription = purchase.productId === SUBSCRIPTION_PRODUCT_ID;
+                const intro = isSubscription
+                    ? `Here's a fresh copy of your download!\n\nYour membership includes the **Muzzle Core Configurator** — the tool for customizing muzzle flash, sparks, smoke, tracers and bullet impacts:\n${downloadUrl}`
+                    : `Here's a fresh copy of your download!\n\n**${purchase.productTitle || "Your download"}**\n${downloadUrl}`;
+                const channelNote = isSubscription
+                    ? (process.env.SUBSCRIBER_CHANNEL_ID
+                        ? `\n\nAlso check out <#${process.env.SUBSCRIBER_CHANNEL_ID}> — that's where the rest of the subscriber-only mods are posted.`
+                        : "\n\nAlso check out your subscriber channel — that's where the rest of the subscriber-only mods are posted.")
+                    : "";
+
                 await interaction.user.send(
-                    `Here's a fresh copy of your download!\n\n**${purchase.productTitle || "Your download"}**\n${downloadUrl}\n\n` +
+                    `${intro}\n\n` +
                     `Your license key (enter this in the app to unlock it):\n\`${licenseKey}\`\n\n` +
-                    `This link and key are tied to your order — please don't share them.`
+                    `This link and key are tied to your order — please don't share them.${channelNote}`
                 );
                 deliveryNote = "\n📦 Check your DMs — a fresh download link and license key are on the way.";
             } catch (err) {
