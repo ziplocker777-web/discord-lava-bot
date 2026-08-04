@@ -196,11 +196,13 @@ function startWebhookServer(client) {
                                 : `Thanks for your purchase!\n\n**${event.product?.title || "Your download"}**\n${downloadUrl}`;
 
                             // Subscribers also get pointed at the channel their role unlocks —
-                            // the configurator is only one of several perks in there.
+                            // the configurator is only one of several mods included there
+                            // (not exclusive content — everything's individually purchasable
+                            // too, the subscription just bundles it all for one price).
                             const channelNote = isSubscription
                                 ? (process.env.SUBSCRIBER_CHANNEL_ID
-                                    ? `\n\nAlso check out <#${process.env.SUBSCRIBER_CHANNEL_ID}> — that's where the rest of the subscriber-only mods are posted.`
-                                    : "\n\nAlso check out your new subscriber channel — that's where the rest of the subscriber-only mods are posted.")
+                                    ? `\n\nAlso check out <#${process.env.SUBSCRIBER_CHANNEL_ID}> — that's where the rest of the mods included in your membership are posted.`
+                                    : "\n\nAlso check out your new subscriber channel — that's where the rest of the mods included in your membership are posted.")
                                 : "";
                             // Deliberately plain about the download — no mention of watermarking.
                             // The license key IS meant to be visible; it's what unlocks the app.

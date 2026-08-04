@@ -147,8 +147,8 @@ async function verifyPurchaseAndDeliver(interaction, email) {
                     : `Here's a fresh copy of your download!\n\n**${purchase.productTitle || "Your download"}**\n${downloadUrl}`;
                 const channelNote = isSubscription
                     ? (process.env.SUBSCRIBER_CHANNEL_ID
-                        ? `\n\nAlso check out <#${process.env.SUBSCRIBER_CHANNEL_ID}> — that's where the rest of the subscriber-only mods are posted.`
-                        : "\n\nAlso check out your subscriber channel — that's where the rest of the subscriber-only mods are posted.")
+                        ? `\n\nAlso check out <#${process.env.SUBSCRIBER_CHANNEL_ID}> — that's where the rest of the mods included in your membership are posted.`
+                        : "\n\nAlso check out your subscriber channel — that's where the rest of the mods included in your membership are posted.")
                     : "";
 
                 await interaction.user.send(
