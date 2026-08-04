@@ -52,7 +52,7 @@ function streamWatermarkedPackage(res, token) {
     archive.pipe(res);
 
     archive.directory(TEMPLATE_DIR, PACKAGE_NAME);
-    archive.append(JSON.stringify({ id: token }), { name: `${MARKER_DIR}/${MARKER_FILENAME}` });
+    archive.append(JSON.stringify({ id: token }), { name: `${PACKAGE_NAME}/${MARKER_DIR}/${MARKER_FILENAME}` });
 
     archive.finalize();
     markDownloaded(token);
