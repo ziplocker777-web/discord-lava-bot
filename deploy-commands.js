@@ -44,6 +44,10 @@ const commands = [
     .setDescription("Send the role verification panel")
     .toJSON(),
   new SlashCommandBuilder()
+    .setName("panelredownload")
+    .setDescription("Send the updated-download / license-key migration panel")
+    .toJSON(),
+  new SlashCommandBuilder()
     .setName("cancelsubscription")
     .setDescription("Cancel a member's lava.top subscription and revoke the Membership role")
     .addStringOption(option =>
