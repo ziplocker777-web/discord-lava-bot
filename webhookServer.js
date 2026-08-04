@@ -184,18 +184,28 @@ function startWebhookServer(client) {
                         // renewal would be spam; buyers who want another copy can always
                         // pull one themselves via /getrole or /panelredownload.
                         if (isNew) {
-                            const user = await client.users.fetch(discordId);
-                            const greeting = event.product?.id === SUBSCRIPTION_PRODUCT_ID
-                                ? "Thanks for subscribing!"
-                                : "Thanks for your purchase!";
-                            await user.send(buildDeliveryMessage({
-                                productId: event.product?.id,
-                                productTitle: event.product?.title,
-                                downloadUrl,
-                                licenseKey,
-                                greeting,
-                            }));
-                            console.log(`Watermarked download delivered to ${discordId} (${event.product?.title})`);
+                            try {
+                                const user = await client.users.fetch(discordId);
+                                const greeting = event.product?.id === SUBSCRIPTION_PRODUCT_ID
+                                    ? "Thanks for subscribing!"
+                                    : "Thanks for your purchase!";
+                                await user.send(buildDeliveryMessage({
+                                    productId: event.product?.id,
+                                    productTitle: event.product?.title,
+                                    downloadUrl,
+                                    licenseKey,
+                                    greeting,
+                                }));
+                                console.log(`Watermarked download delivered to ${discordId} (${event.product?.title})`);
+                            } catch (dmErr) {
+                                // Token/key already exist even though the DM failed (buyer
+                                // has DMs from server members off, most likely) — log them
+                                // so an admin can relay manually instead of digging through
+                                // watermarkStore.json by hand.
+                                console.error(`DM delivery failed for ${discordId} (${event.product?.title}):`, dmErr.message);
+                                console.log(`  Download: ${downloadUrl}`);
+                                console.log(`  License key: ${licenseKey}`);
+                            }
                         } else {
                             console.log(`Watermark already existed for ${discordId} (${event.product?.title}) — DM skipped.`);
                         }

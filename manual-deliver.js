@@ -62,16 +62,24 @@ client.once("ready", async () => {
             productTitle,
         });
 
-        const user = await client.users.fetch(discordId);
-        await user.send(buildDeliveryMessage({
-            productId,
-            productTitle,
-            downloadUrl,
-            licenseKey,
-            greeting: "Thanks for your purchase!",
-        }));
-
-        console.log(`Готово — ссылка и ключ отправлены ${discordId} в личные сообщения.`);
+        try {
+            const user = await client.users.fetch(discordId);
+            await user.send(buildDeliveryMessage({
+                productId,
+                productTitle,
+                downloadUrl,
+                licenseKey,
+                greeting: "Thanks for your purchase!",
+            }));
+            console.log(`Готово — ссылка и ключ отправлены ${discordId} в личные сообщения.`);
+        } catch (dmErr) {
+            // Токен уже создан, даже если DM не дошло (закрытые ЛС и т.п.) — выводим
+            // ссылку и ключ прямо тут, чтобы не лезть в watermarkStore.json руками.
+            console.error("DM не доставлено:", dmErr.message);
+            console.log("Ссылку и ключ придётся передать вручную (например, в тикете):");
+            console.log("  Download:", downloadUrl);
+            console.log("  License key:", licenseKey);
+        }
     } catch (err) {
         console.error("Не удалось выдать вручную:", err.message);
     } finally {

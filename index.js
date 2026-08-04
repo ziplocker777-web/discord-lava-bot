@@ -112,6 +112,7 @@ async function verifyPurchaseAndDeliver(interaction, email) {
         const member = await interaction.guild.members.fetch({ user: interaction.user.id, force: true });
         const grantedRoles = new Set();
         const deliveredTitles = [];
+        const inlineDeliveries = [];
         const failedTitles = [];
         let anyRolesConfigured = false;
 
@@ -139,14 +140,23 @@ async function verifyPurchaseAndDeliver(interaction, email) {
                         productTitle: purchase.productTitle,
                     });
 
-                    await interaction.user.send(buildDeliveryMessage({
-                        productId: purchase.productId,
-                        productTitle: purchase.productTitle,
-                        downloadUrl,
-                        licenseKey,
-                        greeting: "Here's a fresh copy of your download!",
-                    }));
-                    deliveredTitles.push(purchase.productTitle || purchase.productId);
+                    try {
+                        await interaction.user.send(buildDeliveryMessage({
+                            productId: purchase.productId,
+                            productTitle: purchase.productTitle,
+                            downloadUrl,
+                            licenseKey,
+                            greeting: "Here's a fresh copy of your download!",
+                        }));
+                        deliveredTitles.push(purchase.productTitle || purchase.productId);
+                    } catch (dmErr) {
+                        // The token/key are already generated even though the DM
+                        // failed (commonly: buyer has DMs from server members off) —
+                        // fall back to showing them right here, in the ephemeral
+                        // reply only they can see, instead of stranding the buyer.
+                        console.error("DM delivery failed, falling back to inline reply:", dmErr.message);
+                        inlineDeliveries.push({ title: purchase.productTitle || purchase.productId, downloadUrl, licenseKey });
+                    }
                 } catch (err) {
                     console.error("Re-delivery via verify failed:", err.message);
                     failedTitles.push(purchase.productTitle || purchase.productId);
@@ -172,6 +182,11 @@ async function verifyPurchaseAndDeliver(interaction, email) {
         let deliveryNote = "";
         if (deliveredTitles.length > 0) {
             deliveryNote = `\n📦 Check your DMs — a fresh download link and license key for ${deliveredTitles.join(", ")} ${deliveredTitles.length > 1 ? "are" : "is"} on the way.`;
+        }
+        for (const d of inlineDeliveries) {
+            // DMs are off for this account — this reply is ephemeral (only you can
+            // see it), so the link and key go here instead of getting lost.
+            deliveryNote += `\n\n⚠️ Couldn't DM you for **${d.title}** (you may have DMs from server members off) — here it is instead:\n${d.downloadUrl}\nLicense key: \`${d.licenseKey}\``;
         }
         if (failedTitles.length > 0) {
             deliveryNote += `\n⚠️ Couldn't send the download for ${failedTitles.join(", ")} automatically — open a ticket in #ticket and we'll sort it out.`;
