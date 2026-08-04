@@ -105,7 +105,11 @@ async function verifyPurchaseAndDeliver(interaction, email) {
     });
 
     try {
-        const member = interaction.member;
+        // interaction.member isn't reliably registered in the client's guild-member
+        // cache, and User#send() checks that cache to decide whether a "mutual guild"
+        // exists before attempting a DM — without this fetch, delivery can fail with
+        // "no mutual guilds" even though the member is right here, roles and all.
+        const member = await interaction.guild.members.fetch({ user: interaction.user.id, force: true });
         const grantedRoles = new Set();
         const deliveredTitles = [];
         const failedTitles = [];
