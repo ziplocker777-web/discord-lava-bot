@@ -14,10 +14,10 @@ const {
 } = require("discord.js");
 
 const { startWebhookServer, revokeRole, WATERMARKED_PRODUCT_IDS } = require("./webhookServer.js");
-const { getPurchase, recordPurchase } = require("./purchaseStore.js");
+const { getAllPurchases, getPurchaseForProduct, recordPurchase } = require("./purchaseStore.js");
 const { isRefunded } = require("./refundedEmails.js");
 const { createInvoice, cancelSubscription, findCompletedSaleByEmail } = require("./lavaClient.js");
-const { getRolesForProduct } = require("./roles.js");
+const { getRolesForProduct, SUBSCRIPTION_PRODUCT_ID } = require("./roles.js");
 const { deliverPurchase, buildDeliveryMessage } = require("./delivery.js");
 
 const PRODUCT_ID = "04c91dde-254e-45ce-becb-5ab22a86cfca"; // Muzzle Core FX offerId
@@ -37,7 +37,9 @@ const client = new Client({
 // Shared by both the "Get Role" panel (role recovery) and the "Redownload" panel
 // (fresh download + license key for buyers migrating to the license-key version) —
 // same underlying purchase verification, just triggered from two different entry
-// points with different framing for the customer.
+// points with different framing for the customer. Acts on EVERY purchase on file for
+// this email, not just one — a buyer who owns two different products under the same
+// email gets both roles granted and both eligible downloads delivered in one pass.
 async function verifyPurchaseAndDeliver(interaction, email) {
     if (isRefunded(email)) {
         console.warn(`verify: blocked ${email} — listed in refundedEmails.json`);
@@ -46,18 +48,18 @@ async function verifyPurchaseAndDeliver(interaction, email) {
         });
     }
 
-    let purchase = getPurchase(email);
+    let purchases = getAllPurchases(email);
     let usedFallback = false;
 
-    if (!purchase) {
+    if (purchases.length === 0) {
         // Локальной записи нет — возможно, оплата прошла напрямую на
         // сайте lava.top в обход бота, и webhook либо не пришёл, либо
-        // не содержал discordId. Спрашиваем lava.top API напрямую по
-        // всем известным продуктам, прежде чем сдаваться.
+        // не содержал discordId. Спрашиваем lava.top API напрямую —
+        // фоллбек находит только ОДНУ продажу, не все покупки email'а.
         try {
             const sale = await findCompletedSaleByEmail(email);
             if (sale) {
-                purchase = {
+                const purchase = {
                     productId: sale.productId,
                     productTitle: sale.productTitle,
                     contractId: sale.contractId,
@@ -65,6 +67,7 @@ async function verifyPurchaseAndDeliver(interaction, email) {
                     email,
                 };
                 recordPurchase(email, purchase);
+                purchases = [purchase];
                 usedFallback = true;
             }
         } catch (err) {
@@ -72,19 +75,19 @@ async function verifyPurchaseAndDeliver(interaction, email) {
         }
     }
 
-    if (!purchase) {
+    if (purchases.length === 0) {
         return interaction.editReply({
             content: "❌ No purchase found for this email.\n\nIf you paid directly on the lava.top website (not through a button here in Discord), our system can't verify it automatically — please open a ticket in #ticket with your email and a payment screenshot, and we'll grant the role manually.",
         });
     }
 
-    // Защита: если этот email уже привязан к другому Discord-аккаунту
-    // (кто-то другой раньше верифицировался этим же email), не даём
-    // выдать роль текущему пользователю — иначе один email сможет
-    // раздать роль всем, кто его узнает.
-    if (purchase.discordId && purchase.discordId !== interaction.user.id) {
+    // Защита: если хотя бы одна покупка на этот email уже привязана к
+    // другому Discord-аккаунту, не даём выдать роли текущему пользователю —
+    // иначе один email сможет раздать роли всем, кто его узнает.
+    const claimedBy = purchases.find((p) => p.discordId && p.discordId !== interaction.user.id);
+    if (claimedBy) {
         console.warn(
-            `verify: email ${email} already claimed by discordId ${purchase.discordId}, ` +
+            `verify: email ${email} already claimed by discordId ${claimedBy.discordId}, ` +
             `but was attempted by a different user (${interaction.user.id}) — blocked.`
         );
         return interaction.editReply({
@@ -92,67 +95,82 @@ async function verifyPurchaseAndDeliver(interaction, email) {
         });
     }
 
-    // Если запись есть, но discordId ещё не привязан (например, webhook
-    // пришёл без clientUtm.utm_content), закрепляем email за первым,
-    // кто успешно верифицировался — это включает защиту выше и на будущее.
-    if (!purchase.discordId) {
-        purchase = { ...purchase, discordId: interaction.user.id };
-        recordPurchase(email, purchase);
-    }
+    // Закрепляем email за текущим пользователем на всех покупках, где
+    // discordId ещё не привязан (например, webhook пришёл без clientUtm).
+    purchases = purchases.map((p) => {
+        if (p.discordId) return p;
+        const bound = { ...p, discordId: interaction.user.id };
+        recordPurchase(email, bound);
+        return bound;
+    });
 
     try {
         const member = interaction.member;
-        const roleIds = getRolesForProduct(purchase.productId);
+        const grantedRoles = new Set();
+        const deliveredTitles = [];
+        const failedTitles = [];
+        let anyRolesConfigured = false;
 
-        if (roleIds.length === 0) {
+        for (const purchase of purchases) {
+            const roleIds = getRolesForProduct(purchase.productId);
+            if (roleIds.length > 0) anyRolesConfigured = true;
+
+            for (const roleId of roleIds) {
+                if (!member.roles.cache.has(roleId)) {
+                    await member.roles.add(roleId);
+                    grantedRoles.add(roleId);
+                }
+            }
+
+            // Muzzle Core FX / Flash Collection / Graphics Pack / подписка получают
+            // свежую вотермарк-ссылку + ключ при каждом прогоне — не только когда
+            // роль отсутствовала. Это и есть способ, которым уже верифицированные
+            // покупатели сами переходят на новую версию или восстанавливают ключ.
+            if (WATERMARKED_PRODUCT_IDS.has(purchase.productId)) {
+                try {
+                    const { downloadUrl, licenseKey } = deliverPurchase({
+                        email,
+                        discordId: interaction.user.id,
+                        productId: purchase.productId,
+                        productTitle: purchase.productTitle,
+                    });
+
+                    await interaction.user.send(buildDeliveryMessage({
+                        productId: purchase.productId,
+                        productTitle: purchase.productTitle,
+                        downloadUrl,
+                        licenseKey,
+                        greeting: "Here's a fresh copy of your download!",
+                    }));
+                    deliveredTitles.push(purchase.productTitle || purchase.productId);
+                } catch (err) {
+                    console.error("Re-delivery via verify failed:", err.message);
+                    failedTitles.push(purchase.productTitle || purchase.productId);
+                }
+            }
+        }
+
+        if (!anyRolesConfigured) {
             return interaction.editReply({
-                content: "⚠️ No roles are configured for this product. Contact an admin.",
+                content: "⚠️ No roles are configured for any of the products on this email. Contact an admin.",
             });
         }
 
-        const granted = [];
-        for (const roleId of roleIds) {
-            if (!member.roles.cache.has(roleId)) {
-                await member.roles.add(roleId);
-                granted.push(roleId);
-            }
-        }
-
-        // Если покупку нашли через фоллбек, а не через webhook, у нас
-        // может не быть contractId — предупредим, что для подписки
+        // Если хотя бы одна покупка нашлась через фоллбек, а не через webhook,
+        // у неё может не быть contractId — предупредим, что для подписки
         // отмена может потребовать ручного вмешательства администратора.
-        const contractNote = usedFallback && !purchase.contractId
+        const contractNote = usedFallback && purchases.some((p) => !p.contractId)
             ? "\n⚠️ This purchase was verified directly with lava.top (no webhook was received for it). If it's a subscription, cancellation may need admin help since we don't have a contractId on file yet."
             : "";
 
-        const roleNote = granted.length === 0 ? "You already have the role(s)." : "Role has been granted.";
+        const roleNote = grantedRoles.size === 0 ? "You already have the role(s)." : "Role(s) have been granted.";
 
-        // Muzzle Core FX / Flash Collection get a fresh watermarked download + license
-        // key every time this runs — not just when the role was missing. This is also
-        // how already-verified buyers self-serve their way onto a new app version, or
-        // recover a lost key, without an admin doing anything by hand.
         let deliveryNote = "";
-        if (WATERMARKED_PRODUCT_IDS.has(purchase.productId)) {
-            try {
-                const { downloadUrl, licenseKey } = deliverPurchase({
-                    email,
-                    discordId: interaction.user.id,
-                    productId: purchase.productId,
-                    productTitle: purchase.productTitle,
-                });
-
-                await interaction.user.send(buildDeliveryMessage({
-                    productId: purchase.productId,
-                    productTitle: purchase.productTitle,
-                    downloadUrl,
-                    licenseKey,
-                    greeting: "Here's a fresh copy of your download!",
-                }));
-                deliveryNote = "\n📦 Check your DMs — a fresh download link and license key are on the way.";
-            } catch (err) {
-                console.error("Re-delivery via verify failed:", err.message);
-                deliveryNote = "\n⚠️ Couldn't send the download automatically — open a ticket in #ticket and we'll sort it out.";
-            }
+        if (deliveredTitles.length > 0) {
+            deliveryNote = `\n📦 Check your DMs — a fresh download link and license key for ${deliveredTitles.join(", ")} ${deliveredTitles.length > 1 ? "are" : "is"} on the way.`;
+        }
+        if (failedTitles.length > 0) {
+            deliveryNote += `\n⚠️ Couldn't send the download for ${failedTitles.join(", ")} automatically — open a ticket in #ticket and we'll sort it out.`;
         }
 
         return interaction.editReply({
@@ -831,11 +849,13 @@ Click the button below and enter the email you used at checkout.`
 
         const email = interaction.options.getString("email").trim().toLowerCase();
 
-        const purchase = getPurchase(email);
+        // Specifically the subscription purchase — an email can now own several
+        // different products, and cancelling has to target the right one.
+        const purchase = getPurchaseForProduct(email, SUBSCRIPTION_PRODUCT_ID);
 
         if (!purchase) {
             return interaction.editReply({
-                content: `❌ No purchase found for \`${email}\`.`,
+                content: `❌ No subscription purchase found for \`${email}\`.`,
             });
         }
 

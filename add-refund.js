@@ -1,13 +1,22 @@
 require("dotenv").config();
 const { Client, GatewayIntentBits } = require("discord.js");
 const { addRefund } = require("./refundedEmails");
-const { getPurchase } = require("./purchaseStore");
+const { getPurchaseForProduct, getAllPurchases } = require("./purchaseStore");
 const { getRolesForProduct } = require("./roles");
+const KNOWN_PRODUCT_IDS = require("./products");
 
+// Note: refundedEmails.json still blocks the WHOLE email from future /getrole and
+// /panelredownload verification, not just the refunded product — if this email also
+// owns something else legitimately, that purchase becomes unreachable through
+// self-serve too. Rare enough in practice that this hasn't been split per-product;
+// worth revisiting if a genuinely mixed refund/keep case comes up.
 const EMAIL = process.argv[2];
+const PRODUCT_TITLE = process.argv.slice(3).join(" ");
 
 if (!EMAIL) {
-    console.error("Использование: node add-refund.js email@example.com");
+    console.error('Использование: node add-refund.js email@example.com ["Название товара"]');
+    console.error("Название товара обязательно, если на email больше одной покупки.");
+    console.error("Доступные названия:", Object.keys(KNOWN_PRODUCT_IDS).join(", "));
     process.exit(1);
 }
 
@@ -15,10 +24,27 @@ const normalized = EMAIL.trim().toLowerCase();
 addRefund(normalized);
 console.log(`Добавлено в refundedEmails.json: ${normalized}`);
 
-const purchase = getPurchase(normalized);
+let purchase;
+if (PRODUCT_TITLE) {
+    const productId = KNOWN_PRODUCT_IDS[PRODUCT_TITLE];
+    if (!productId) {
+        console.error(`Неизвестное название товара: "${PRODUCT_TITLE}"`);
+        console.error("Доступные:", Object.keys(KNOWN_PRODUCT_IDS).join(", "));
+        process.exit(1);
+    }
+    purchase = getPurchaseForProduct(normalized, productId);
+} else {
+    const all = getAllPurchases(normalized);
+    if (all.length > 1) {
+        console.error(`У ${normalized} несколько покупок — укажи, какую именно рефандят:`);
+        for (const p of all) console.error(`  - ${p.productTitle || p.productId}`);
+        process.exit(1);
+    }
+    purchase = all[0] || null;
+}
 
 if (!purchase) {
-    console.log("Локальной записи о покупке нет — снимать роль не с кого. Email заблокирован для будущих /getrole и /panelredownload.");
+    console.log("Локальной записи об этой покупке нет — снимать роль не с кого. Email заблокирован для будущих /getrole и /panelredownload.");
     process.exit(0);
 }
 
@@ -27,10 +53,6 @@ if (!purchase.discordId) {
     process.exit(0);
 }
 
-// purchaseStore.json хранит ОДНУ (последнюю) запись на email — если человек
-// покупал несколько разных товаров, здесь будет только последний. Снимаем
-// роли ровно для этого товара, теми же правилами, что их выдают (roles.js) —
-// если он владеет ещё чем-то под тем же email, придётся довыдать вручную.
 const roleIds = getRolesForProduct(purchase.productId);
 
 if (roleIds.length === 0) {

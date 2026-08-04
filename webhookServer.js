@@ -1,6 +1,6 @@
 require("dotenv").config();
 const express = require("express");
-const { recordPurchase, getPurchase } = require("./purchaseStore");
+const { recordPurchase, getPurchaseForProduct } = require("./purchaseStore");
 const { getRolesForProduct, getRolesToRevokeOnCancellation, SUBSCRIPTION_PRODUCT_ID } = require("./roles");
 const { deliverPurchase, streamWatermarkedPackage, buildDeliveryMessage } = require("./delivery");
 const { registerPresetsApi } = require("./presetsApi");
@@ -239,7 +239,9 @@ function startWebhookServer(client) {
 
                 let discordId = event.clientUtm?.utm_content || null;
                 if (!discordId && email) {
-                    const purchase = getPurchase(email);
+                    // Specifically this product's purchase — the email may own others
+                    // too, and we want the discordId tied to the thing being cancelled.
+                    const purchase = getPurchaseForProduct(email, event.product?.id);
                     discordId = purchase?.discordId || null;
                 }
 
