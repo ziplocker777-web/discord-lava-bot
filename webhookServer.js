@@ -1,7 +1,7 @@
 require("dotenv").config();
 const express = require("express");
 const { recordPurchase, getPurchase } = require("./purchaseStore");
-const { getRolesForProduct, getRolesToRevokeOnCancellation } = require("./roles");
+const { getRolesForProduct, getRolesToRevokeOnCancellation, SUBSCRIPTION_PRODUCT_ID } = require("./roles");
 const { deliverPurchase, streamWatermarkedPackage } = require("./delivery");
 const { registerPresetsApi } = require("./presetsApi");
 const { registerActivateApi } = require("./activateApi");
@@ -184,6 +184,31 @@ function startWebhookServer(client) {
                         console.log(`Watermarked download delivered to ${discordId} (${event.product?.title})`);
                     } catch (err) {
                         console.error("Watermarked delivery failed:", err.message);
+                    }
+                } else if (discordId) {
+                    // Every other product has no bot-side delivery — lava.top emails the
+                    // buyer their Google Drive link directly — but staying silent here felt
+                    // broken from the buyer's side, so we still confirm the purchase in DM.
+                    try {
+                        const user = await client.users.fetch(discordId);
+                        if (event.product?.id === SUBSCRIPTION_PRODUCT_ID) {
+                            const channelMention = process.env.SUBSCRIBER_CHANNEL_ID
+                                ? `<#${process.env.SUBSCRIBER_CHANNEL_ID}>`
+                                : "your new subscriber channel";
+                            await user.send(
+                                `Thanks for subscribing!\n\n` +
+                                `Check out ${channelMention} — that's where all the subscriber-only mods are posted.`
+                            );
+                        } else {
+                            await user.send(
+                                `Thanks for your purchase!\n\n**${event.product?.title || "Your order"}**\n\n` +
+                                `The download link was sent to your email and is available in your lava.top account:\n` +
+                                `https://app.lava.top/my-purchases`
+                            );
+                        }
+                        console.log(`Purchase confirmation DM sent to ${discordId} (${event.product?.title})`);
+                    } catch (err) {
+                        console.error("Purchase confirmation DM failed:", err.message);
                     }
                 }
 
