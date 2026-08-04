@@ -10,9 +10,13 @@ const KNOWN_PRODUCT_IDS = require("./products");
 // These products bundle the Muzzle Core Configurator (either as the product itself,
 // or as part of a graphics pack) and get an automatic watermarked download — everything
 // else keeps working exactly as before (role grant only, manual file sharing).
+//
+// NOT Flash Collection — that's just 4 extra flash textures dropped into an already
+//-installed copy's Assets\Presets\ folder, not the app itself. Delivering the full
+// APP_TEMPLATE_DIR package for it would just hand the buyer a duplicate of the base
+// app; it stays on the plain Google Drive flow like every other non-app product.
 const WATERMARKED_PRODUCT_IDS = new Set([
     KNOWN_PRODUCT_IDS["Muzzle Core FX"],
-    KNOWN_PRODUCT_IDS["Muzzle Core FX | Flash Collection"],
     KNOWN_PRODUCT_IDS["Ziplocker's Graphics Pack V1"],
     KNOWN_PRODUCT_IDS["Ziplocker's Graphics Pack V2"],
     SUBSCRIPTION_PRODUCT_ID,
