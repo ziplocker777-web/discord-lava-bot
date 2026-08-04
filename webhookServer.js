@@ -7,11 +7,14 @@ const { registerPresetsApi } = require("./presetsApi");
 const { registerActivateApi } = require("./activateApi");
 const KNOWN_PRODUCT_IDS = require("./products");
 
-// Only these two products get an automatic watermarked download — everything
+// These products bundle the Muzzle Core Configurator (either as the product itself,
+// or as part of a graphics pack) and get an automatic watermarked download — everything
 // else keeps working exactly as before (role grant only, manual file sharing).
 const WATERMARKED_PRODUCT_IDS = new Set([
     KNOWN_PRODUCT_IDS["Muzzle Core FX"],
     KNOWN_PRODUCT_IDS["Muzzle Core FX | Flash Collection"],
+    KNOWN_PRODUCT_IDS["Ziplocker's Graphics Pack V1"],
+    KNOWN_PRODUCT_IDS["Ziplocker's Graphics Pack V2"],
 ]);
 
 // Список типов событий, которые означают успешную оплату/оформление
