@@ -114,6 +114,20 @@ function markActivated(token) {
     save(db);
 }
 
+// Kills a key that's already been activated on someone's machine. The app checks this
+// with a short-timeout, best-effort request on startup — if the server's unreachable
+// it just proceeds as normal (offline use stays possible), but if it IS reachable and
+// says revoked, the app drops back to the license-key screen.
+function setRevoked(licenseKey, revoked) {
+    const db = load();
+    const normalized = licenseKey.trim().toUpperCase();
+    const entry = Object.values(db).find((r) => r.licenseKey === normalized);
+    if (!entry) return false;
+    entry.revoked = revoked;
+    save(db);
+    return true;
+}
+
 module.exports = {
     createWatermark,
     getWatermark,
@@ -121,4 +135,5 @@ module.exports = {
     isValidToken,
     getPurchaseByLicenseKey,
     markActivated,
+    setRevoked,
 };
