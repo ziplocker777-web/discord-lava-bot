@@ -11,7 +11,9 @@ const MAX_PRESET_JSON_LENGTH = 50_000;
 function registerPresetsApi(app) {
     app.get("/presets", (req, res) => {
         try {
-            res.json(listPresets());
+            const token = req.header("X-Watermark-Token");
+            const watermark = token && isValidToken(token) ? getWatermark(token) : null;
+            res.json(listPresets(watermark?.discordId ?? null));
         } catch (err) {
             console.error("[presets] list failed:", err);
             res.status(500).json({ error: "Failed to list presets" });

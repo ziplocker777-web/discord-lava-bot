@@ -13,9 +13,17 @@ function save(list) {
 }
 
 // Public listing — never includes email/discordId, only what the app needs to
-// show a preset in a browsing list and let the user apply it.
-function listPresets() {
-    return load().map(({ id, name, data, createdAt }) => ({ id, name, data, createdAt }));
+// show a preset in a browsing list and let the user apply it. requesterDiscordId
+// (resolved from the caller's watermark token, if any) is used only to compute
+// isMine per preset — never exposed itself, and never leaks anyone else's id.
+function listPresets(requesterDiscordId = null) {
+    return load().map(({ id, name, data, createdAt, submittedBy }) => ({
+        id,
+        name,
+        data,
+        createdAt,
+        isMine: requesterDiscordId != null && submittedBy === requesterDiscordId,
+    }));
 }
 
 // Full record (including submittedBy) — used only for the ownership check on delete,
