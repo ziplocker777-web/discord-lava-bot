@@ -2,7 +2,7 @@ require("dotenv").config();
 const express = require("express");
 const { recordPurchase, getPurchase } = require("./purchaseStore");
 const { getRolesForProduct, getRolesToRevokeOnCancellation, SUBSCRIPTION_PRODUCT_ID } = require("./roles");
-const { deliverPurchase, streamWatermarkedPackage } = require("./delivery");
+const { deliverPurchase, streamWatermarkedPackage, buildDeliveryMessage } = require("./delivery");
 const { registerPresetsApi } = require("./presetsApi");
 const { registerActivateApi } = require("./activateApi");
 const KNOWN_PRODUCT_IDS = require("./products");
@@ -185,32 +185,16 @@ function startWebhookServer(client) {
                         // pull one themselves via /getrole or /panelredownload.
                         if (isNew) {
                             const user = await client.users.fetch(discordId);
-                            const isSubscription = event.product?.id === SUBSCRIPTION_PRODUCT_ID;
-
-                            // The subscription's product title ("Subscription ziplocker") isn't
-                            // what's actually being downloaded here, so it gets its own intro
-                            // explaining that the app comes bundled with the membership —
-                            // everything else shows the real product title as-is.
-                            const intro = isSubscription
-                                ? `Thanks for subscribing!\n\nYour membership includes the **Muzzle Core Configurator** — the tool for customizing muzzle flash, sparks, smoke, tracers and bullet impacts. Here's your download and license key:\n${downloadUrl}`
-                                : `Thanks for your purchase!\n\n**${event.product?.title || "Your download"}**\n${downloadUrl}`;
-
-                            // Subscribers also get pointed at the channel their role unlocks —
-                            // the configurator is only one of several mods included there
-                            // (not exclusive content — everything's individually purchasable
-                            // too, the subscription just bundles it all for one price).
-                            const channelNote = isSubscription
-                                ? (process.env.SUBSCRIBER_CHANNEL_ID
-                                    ? `\n\nAlso check out <#${process.env.SUBSCRIBER_CHANNEL_ID}> — that's where the rest of the mods included in your membership are posted.`
-                                    : "\n\nAlso check out your new subscriber channel — that's where the rest of the mods included in your membership are posted.")
-                                : "";
-                            // Deliberately plain about the download — no mention of watermarking.
-                            // The license key IS meant to be visible; it's what unlocks the app.
-                            await user.send(
-                                `${intro}\n\n` +
-                                `Your license key (enter this in the app to unlock it):\n\`${licenseKey}\`\n\n` +
-                                `This link and key are tied to your order — please don't share them.${channelNote}`
-                            );
+                            const greeting = event.product?.id === SUBSCRIPTION_PRODUCT_ID
+                                ? "Thanks for subscribing!"
+                                : "Thanks for your purchase!";
+                            await user.send(buildDeliveryMessage({
+                                productId: event.product?.id,
+                                productTitle: event.product?.title,
+                                downloadUrl,
+                                licenseKey,
+                                greeting,
+                            }));
                             console.log(`Watermarked download delivered to ${discordId} (${event.product?.title})`);
                         } else {
                             console.log(`Watermark already existed for ${discordId} (${event.product?.title}) — DM skipped.`);

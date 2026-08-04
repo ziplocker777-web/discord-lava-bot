@@ -1,5 +1,6 @@
 const archiver = require("archiver");
 const { createWatermark, getWatermark, markDownloaded } = require("./watermarkStore");
+const { SUBSCRIPTION_PRODUCT_ID } = require("./roles");
 
 // Folder on this server holding the buyer's copy of the app (exe + Assets), same
 // contents as what you'd zip up manually today. Never modified on disk — every
@@ -36,6 +37,28 @@ function deliverPurchase({ email, discordId, productId, productTitle }) {
     return { downloadUrl: buildDownloadUrl(token), licenseKey, isNew };
 }
 
+// Shared DM copy for every delivery path (webhook, /getrole, /panelredownload, manual
+// admin delivery) — the subscription's raw product title ("Subscription ziplocker")
+// isn't what's actually being downloaded, so it gets its own explanation instead of
+// just printing the title, plus a pointer to the channel with the rest of its mods.
+function buildDeliveryMessage({ productId, productTitle, downloadUrl, licenseKey, greeting = "Thanks for your purchase!" }) {
+    const isSubscription = productId === SUBSCRIPTION_PRODUCT_ID;
+
+    const intro = isSubscription
+        ? `${greeting}\n\nYour membership includes the **Muzzle Core Configurator** — the tool for customizing muzzle flash, sparks, smoke, tracers and bullet impacts:\n${downloadUrl}`
+        : `${greeting}\n\n**${productTitle || "Your download"}**\n${downloadUrl}`;
+
+    const channelNote = isSubscription
+        ? (process.env.SUBSCRIBER_CHANNEL_ID
+            ? `\n\nAlso check out <#${process.env.SUBSCRIBER_CHANNEL_ID}> — that's where the rest of the mods included in your membership are posted.`
+            : "\n\nAlso check out your subscriber channel — that's where the rest of the mods included in your membership are posted.")
+        : "";
+
+    return `${intro}\n\n` +
+        `Your license key (enter this in the app to unlock it):\n\`${licenseKey}\`\n\n` +
+        `This link and key are tied to your order — please don't share them.${channelNote}`;
+}
+
 // Streams a fresh zip of TEMPLATE_DIR into res, with the hidden marker file
 // injected. Returns false (and sends its own 404) if the token is unknown.
 function streamWatermarkedPackage(res, token) {
@@ -59,4 +82,4 @@ function streamWatermarkedPackage(res, token) {
     return true;
 }
 
-module.exports = { deliverPurchase, streamWatermarkedPackage, buildDownloadUrl };
+module.exports = { deliverPurchase, streamWatermarkedPackage, buildDownloadUrl, buildDeliveryMessage };
