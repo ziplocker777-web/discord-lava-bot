@@ -331,4 +331,4 @@ async function revokeRole(client, discordId) {
     }
 }
 
-module.exports = { startWebhookServer, revokeRole };
+module.exports = { startWebhookServer, revokeRole, WATERMARKED_PRODUCT_IDS };

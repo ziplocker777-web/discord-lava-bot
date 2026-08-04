@@ -13,11 +13,12 @@ const {
     TextInputStyle,
 } = require("discord.js");
 
-const { startWebhookServer, revokeRole } = require("./webhookServer.js");
+const { startWebhookServer, revokeRole, WATERMARKED_PRODUCT_IDS } = require("./webhookServer.js");
 const { getPurchase, recordPurchase } = require("./purchaseStore.js");
 const { isRefunded } = require("./refundedEmails.js");
 const { createInvoice, cancelSubscription, findCompletedSaleByEmail } = require("./lavaClient.js");
 const { getRolesForProduct } = require("./roles.js");
+const { deliverPurchase } = require("./delivery.js");
 
 const PRODUCT_ID = "04c91dde-254e-45ce-becb-5ab22a86cfca"; // Muzzle Core FX offerId
 const PRODUCT_ID_VISUALS = "70c48693-8412-4b5e-871a-9878fe6bfda5"; // Ziplocker Summer Visuals offerId
@@ -669,7 +670,8 @@ One membership. Every visual upgrade.
             .setColor("#3DDC84")
             .setTitle("Get Role")
             .setDescription(
-`Already purchased but didn't get the role automatically?
+`Already purchased but didn't get the role automatically — or need a fresh
+download link and license key (e.g. after an app update)?
 
 Click the button below and enter the email you used at checkout.`
             )
@@ -957,14 +959,35 @@ Click the button below and enter the email you used at checkout.`
                 ? "\n⚠️ This purchase was verified directly with lava.top (no webhook was received for it). If it's a subscription, cancellation may need admin help since we don't have a contractId on file yet."
                 : "";
 
-            if (granted.length === 0) {
-                return interaction.editReply({
-                    content: `✅ You already have the role(s).${contractNote}`,
-                });
+            const roleNote = granted.length === 0 ? "You already have the role(s)." : "Role has been granted.";
+
+            // Muzzle Core FX / Flash Collection get a fresh watermarked download + license
+            // key every time this runs — not just when the role was missing. This is also
+            // how already-verified buyers self-serve their way onto a new app version, or
+            // recover a lost key, without an admin doing anything by hand.
+            let deliveryNote = "";
+            if (WATERMARKED_PRODUCT_IDS.has(purchase.productId)) {
+                try {
+                    const { downloadUrl, licenseKey } = deliverPurchase({
+                        email,
+                        discordId: interaction.user.id,
+                        productId: purchase.productId,
+                        productTitle: purchase.productTitle,
+                    });
+                    await interaction.user.send(
+                        `Here's a fresh copy of your download!\n\n**${purchase.productTitle || "Your download"}**\n${downloadUrl}\n\n` +
+                        `Your license key (enter this in the app to unlock it):\n\`${licenseKey}\`\n\n` +
+                        `This link and key are tied to your order — please don't share them.`
+                    );
+                    deliveryNote = "\n📦 Check your DMs — a fresh download link and license key are on the way.";
+                } catch (err) {
+                    console.error("Re-delivery via /getrole failed:", err.message);
+                    deliveryNote = "\n⚠️ Couldn't send the download automatically — open a ticket in #ticket and we'll sort it out.";
+                }
             }
 
             return interaction.editReply({
-                content: `✅ Verified! Role has been granted.${contractNote}`,
+                content: `✅ Verified! ${roleNote}${contractNote}${deliveryNote}`,
             });
 
         } catch (err) {
