@@ -10,6 +10,11 @@ const TEMPLATE_DIR = process.env.APP_TEMPLATE_DIR;
 // build the link sent to the buyer. No trailing slash.
 const PUBLIC_BASE_URL = process.env.PUBLIC_BASE_URL;
 
+// Both the folder inside the zip AND the zip's own filename — bump this on release so
+// buyers who unzip end up with a clearly-versioned folder instead of files loose in
+// whatever directory they extracted into.
+const PACKAGE_NAME = "Muzzle Core Configurator v2.2";
+
 // Deliberately bland name/location — buyers are never told this exists or what
 // it's for. It just silently rides along inside their copy of the app. If a
 // buyer's package ever leaks, this is what maps it back to their purchase.
@@ -37,7 +42,7 @@ function streamWatermarkedPackage(res, token) {
     const record = getWatermark(token);
     if (!record) return false;
 
-    res.attachment("Muzzle Core Configurator.zip");
+    res.attachment(`${PACKAGE_NAME}.zip`);
 
     const archive = archiver("zip", { zlib: { level: 6 } });
     archive.on("error", (err) => {
@@ -46,7 +51,7 @@ function streamWatermarkedPackage(res, token) {
     });
     archive.pipe(res);
 
-    archive.directory(TEMPLATE_DIR, false);
+    archive.directory(TEMPLATE_DIR, PACKAGE_NAME);
     archive.append(JSON.stringify({ id: token }), { name: `${MARKER_DIR}/${MARKER_FILENAME}` });
 
     archive.finalize();

@@ -18,6 +18,12 @@ function listPresets() {
     return load().map(({ id, name, data, createdAt }) => ({ id, name, data, createdAt }));
 }
 
+// Full record (including submittedBy) — used only for the ownership check on delete,
+// never returned to a client directly.
+function getPresetById(id) {
+    return load().find((p) => p.id === id) || null;
+}
+
 function addPreset({ name, data, submittedBy }) {
     const list = load();
     const preset = {
@@ -40,4 +46,4 @@ function removePreset(id) {
     return true;
 }
 
-module.exports = { listPresets, addPreset, removePreset };
+module.exports = { listPresets, addPreset, removePreset, getPresetById };

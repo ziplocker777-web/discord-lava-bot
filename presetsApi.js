@@ -1,5 +1,5 @@
 const { isValidToken, getWatermark } = require("./watermarkStore");
-const { listPresets, addPreset } = require("./presetsStore");
+const { listPresets, addPreset, removePreset, getPresetById } = require("./presetsStore");
 
 // Hard cap on the JSON preset payload — a real .zwp is a few KB; this is generous
 // headroom while still ruling out someone trying to dump arbitrary large blobs in.
@@ -43,6 +43,30 @@ function registerPresetsApi(app) {
 
         console.log(`[presets] new submission "${preset.name}" (${preset.id}) by ${watermark.discordId}`);
         res.status(201).json({ id: preset.id });
+    });
+
+    app.delete("/presets/:id", (req, res) => {
+        const token = req.header("X-Watermark-Token");
+
+        if (!isValidToken(token)) {
+            console.warn(`[presets] delete rejected — invalid/missing token, ip: ${req.ip}`);
+            return res.status(401).json({ error: "Invalid or missing token" });
+        }
+
+        const preset = getPresetById(req.params.id);
+        if (!preset) {
+            return res.status(404).json({ error: "Preset not found" });
+        }
+
+        const watermark = getWatermark(token);
+        if (preset.submittedBy !== watermark.discordId) {
+            console.warn(`[presets] delete rejected — ${watermark.discordId} doesn't own ${req.params.id}`);
+            return res.status(403).json({ error: "You can only delete your own presets" });
+        }
+
+        removePreset(req.params.id);
+        console.log(`[presets] "${preset.name}" (${preset.id}) deleted by ${watermark.discordId}`);
+        res.json({ ok: true });
     });
 }
 
