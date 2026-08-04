@@ -1,3 +1,5 @@
 node_modules/
 .env
 purchaseStore.json
+watermarkStore.json
+presetsStore.json

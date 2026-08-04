@@ -2,6 +2,17 @@ require("dotenv").config();
 const express = require("express");
 const { recordPurchase, getPurchase } = require("./purchaseStore");
 const { getRolesForProduct, getRolesToRevokeOnCancellation } = require("./roles");
+const { deliverPurchase, streamWatermarkedPackage } = require("./delivery");
+const { registerPresetsApi } = require("./presetsApi");
+const { registerActivateApi } = require("./activateApi");
+const KNOWN_PRODUCT_IDS = require("./products");
+
+// Only these two products get an automatic watermarked download — everything
+// else keeps working exactly as before (role grant only, manual file sharing).
+const WATERMARKED_PRODUCT_IDS = new Set([
+    KNOWN_PRODUCT_IDS["Muzzle Core FX"],
+    KNOWN_PRODUCT_IDS["Muzzle Core FX | Flash Collection"],
+]);
 
 // Список типов событий, которые означают успешную оплату/оформление
 const SUCCESS_EVENT_TYPES = [
@@ -104,6 +115,9 @@ function startWebhookServer(client) {
         next(err);
     });
 
+    registerPresetsApi(app);
+    registerActivateApi(app);
+
     app.post("/webhook/lava", (req, res, next) => {
         console.log(`[webhook] incoming — ip: ${req.ip}, hasApiKey: ${Boolean(req.header("X-Api-Key"))}, time: ${new Date().toISOString()}`);
         next();
@@ -149,6 +163,28 @@ function startWebhookServer(client) {
                     }
                 } else {
                     console.warn("Webhook without discordId in clientUtm.utm_content — role not granted automatically.");
+                }
+
+                if (discordId && email && WATERMARKED_PRODUCT_IDS.has(event.product?.id)) {
+                    try {
+                        const { downloadUrl, licenseKey } = deliverPurchase({
+                            email,
+                            discordId,
+                            productId: event.product?.id,
+                            productTitle: event.product?.title,
+                        });
+                        const user = await client.users.fetch(discordId);
+                        // Deliberately plain about the download — no mention of watermarking.
+                        // The license key IS meant to be visible; it's what unlocks the app.
+                        await user.send(
+                            `Thanks for your purchase!\n\n**${event.product?.title || "Your download"}**\n${downloadUrl}\n\n` +
+                            `Your license key (enter this in the app to unlock it):\n\`${licenseKey}\`\n\n` +
+                            `This link and key are tied to your order — please don't share them.`
+                        );
+                        console.log(`Watermarked download delivered to ${discordId} (${event.product?.title})`);
+                    } catch (err) {
+                        console.error("Watermarked delivery failed:", err.message);
+                    }
                 }
 
                 return res.sendStatus(200);
@@ -203,6 +239,17 @@ function startWebhookServer(client) {
         } catch (error) {
             console.error("Critical error inside webhook processing:", error);
             return res.status(200).send("Webhook received with internal tracking error");
+        }
+    });
+
+    // Per-buyer download link sent in the DM above. Not authenticated beyond the
+    // token itself being unguessable (32 hex chars) — same trust model as any
+    // "here's your unlisted download link" delivery.
+    app.get("/download/:token", (req, res) => {
+        const ok = streamWatermarkedPackage(res, req.params.token);
+        if (!ok) {
+            console.warn(`[download] unknown token requested — ip: ${req.ip}`);
+            res.status(404).send("Not found");
         }
     });
 
