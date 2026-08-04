@@ -15,6 +15,7 @@ const WATERMARKED_PRODUCT_IDS = new Set([
     KNOWN_PRODUCT_IDS["Muzzle Core FX | Flash Collection"],
     KNOWN_PRODUCT_IDS["Ziplocker's Graphics Pack V1"],
     KNOWN_PRODUCT_IDS["Ziplocker's Graphics Pack V2"],
+    SUBSCRIPTION_PRODUCT_ID,
 ]);
 
 // Список типов событий, которые означают успешную оплату/оформление
@@ -170,45 +171,53 @@ function startWebhookServer(client) {
 
                 if (discordId && email && WATERMARKED_PRODUCT_IDS.has(event.product?.id)) {
                     try {
-                        const { downloadUrl, licenseKey } = deliverPurchase({
+                        const { downloadUrl, licenseKey, isNew } = deliverPurchase({
                             email,
                             discordId,
                             productId: event.product?.id,
                             productTitle: event.product?.title,
                         });
-                        const user = await client.users.fetch(discordId);
-                        // Deliberately plain about the download — no mention of watermarking.
-                        // The license key IS meant to be visible; it's what unlocks the app.
-                        await user.send(
-                            `Thanks for your purchase!\n\n**${event.product?.title || "Your download"}**\n${downloadUrl}\n\n` +
-                            `Your license key (enter this in the app to unlock it):\n\`${licenseKey}\`\n\n` +
-                            `This link and key are tied to your order — please don't share them.`
-                        );
-                        console.log(`Watermarked download delivered to ${discordId} (${event.product?.title})`);
+
+                        // Only DM on the actual first delivery — a subscription fires this
+                        // same code path every renewal, and isNew is false from then on
+                        // since the token/key are reused. Re-sending the DM on every
+                        // renewal would be spam; buyers who want another copy can always
+                        // pull one themselves via /getrole or /panelredownload.
+                        if (isNew) {
+                            const user = await client.users.fetch(discordId);
+                            // Subscribers also get pointed at the channel their role unlocks —
+                            // the configurator is only one of several perks in there.
+                            const channelNote = event.product?.id === SUBSCRIPTION_PRODUCT_ID
+                                ? (process.env.SUBSCRIBER_CHANNEL_ID
+                                    ? `\n\nAlso check out <#${process.env.SUBSCRIBER_CHANNEL_ID}> — that's where the rest of the subscriber-only mods are posted.`
+                                    : "\n\nAlso check out your new subscriber channel — that's where the rest of the subscriber-only mods are posted.")
+                                : "";
+                            // Deliberately plain about the download — no mention of watermarking.
+                            // The license key IS meant to be visible; it's what unlocks the app.
+                            await user.send(
+                                `Thanks for your purchase!\n\n**${event.product?.title || "Your download"}**\n${downloadUrl}\n\n` +
+                                `Your license key (enter this in the app to unlock it):\n\`${licenseKey}\`\n\n` +
+                                `This link and key are tied to your order — please don't share them.${channelNote}`
+                            );
+                            console.log(`Watermarked download delivered to ${discordId} (${event.product?.title})`);
+                        } else {
+                            console.log(`Watermark already existed for ${discordId} (${event.product?.title}) — DM skipped.`);
+                        }
                     } catch (err) {
                         console.error("Watermarked delivery failed:", err.message);
                     }
                 } else if (discordId) {
-                    // Every other product has no bot-side delivery — lava.top emails the
-                    // buyer their Google Drive link directly — but staying silent here felt
-                    // broken from the buyer's side, so we still confirm the purchase in DM.
+                    // Every other product (not watermarked, not the subscription — that
+                    // one's handled above now) has no bot-side delivery — lava.top emails
+                    // the buyer their Google Drive link directly — but staying silent here
+                    // felt broken from the buyer's side, so we still confirm the purchase.
                     try {
                         const user = await client.users.fetch(discordId);
-                        if (event.product?.id === SUBSCRIPTION_PRODUCT_ID) {
-                            const channelMention = process.env.SUBSCRIBER_CHANNEL_ID
-                                ? `<#${process.env.SUBSCRIBER_CHANNEL_ID}>`
-                                : "your new subscriber channel";
-                            await user.send(
-                                `Thanks for subscribing!\n\n` +
-                                `Check out ${channelMention} — that's where all the subscriber-only mods are posted.`
-                            );
-                        } else {
-                            await user.send(
-                                `Thanks for your purchase!\n\n**${event.product?.title || "Your order"}**\n\n` +
-                                `The download link was sent to your email and is available in your lava.top account:\n` +
-                                `https://app.lava.top/my-purchases`
-                            );
-                        }
+                        await user.send(
+                            `Thanks for your purchase!\n\n**${event.product?.title || "Your order"}**\n\n` +
+                            `The download link was sent to your email and is available in your lava.top account:\n` +
+                            `https://app.lava.top/my-purchases`
+                        );
                         console.log(`Purchase confirmation DM sent to ${discordId} (${event.product?.title})`);
                     } catch (err) {
                         console.error("Purchase confirmation DM failed:", err.message);

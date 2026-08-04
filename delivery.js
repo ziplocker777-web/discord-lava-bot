@@ -32,8 +32,8 @@ function deliverPurchase({ email, discordId, productId, productTitle }) {
     if (!TEMPLATE_DIR || !PUBLIC_BASE_URL) {
         throw new Error("APP_TEMPLATE_DIR and PUBLIC_BASE_URL must be set in .env for automatic delivery.");
     }
-    const { token, licenseKey } = createWatermark({ email, discordId, productId, productTitle });
-    return { downloadUrl: buildDownloadUrl(token), licenseKey };
+    const { token, licenseKey, isNew } = createWatermark({ email, discordId, productId, productTitle });
+    return { downloadUrl: buildDownloadUrl(token), licenseKey, isNew };
 }
 
 // Streams a fresh zip of TEMPLATE_DIR into res, with the hidden marker file

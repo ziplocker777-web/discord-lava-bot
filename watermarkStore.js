@@ -38,9 +38,20 @@ function generateLicenseKey() {
 
 // One buyer can end up with more than one token if they buy Muzzle Core FX and
 // Flash Collection separately — each purchase gets its own token/package, so a
-// leak of either points back to exactly which purchase it came from.
+// leak of either points back to exactly which purchase it came from. But a
+// SECOND call for the same (discordId, productId) — a subscription renewal, a
+// re-verification via /getrole or /panelredownload — reuses the existing
+// token/key instead of minting a new one. Without this, a monthly-renewing
+// subscription would DM the buyer a brand new key every single month.
 function createWatermark({ email, discordId, productId, productTitle }) {
     const db = load();
+
+    for (const [existingToken, record] of Object.entries(db)) {
+        if (record.discordId === discordId && record.productId === productId) {
+            return { token: existingToken, licenseKey: record.licenseKey, isNew: false };
+        }
+    }
+
     const token = generateToken();
     const licenseKey = generateLicenseKey();
 
@@ -56,7 +67,7 @@ function createWatermark({ email, discordId, productId, productTitle }) {
     };
 
     save(db);
-    return { token, licenseKey };
+    return { token, licenseKey, isNew: true };
 }
 
 function getWatermark(token) {
