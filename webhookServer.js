@@ -223,10 +223,17 @@ function startWebhookServer(client) {
                     // felt broken from the buyer's side, so we still confirm the purchase.
                     try {
                         const user = await client.users.fetch(discordId);
+                        // Flash Collection is an add-on that needs the base Muzzle Core FX
+                        // tool already installed — buyers who skip the panel description
+                        // regularly buy this alone thinking it's the whole app, then think
+                        // they got scammed when it doesn't work. Spell it out here too.
+                        const flashCollectionNote = event.product?.id === KNOWN_PRODUCT_IDS["Muzzle Core FX | Flash Collection"]
+                            ? `\n\n⚠️ This is an add-on for the Muzzle Core FX configurator — it does NOT include the app itself. If you don't already own Muzzle Core FX, you'll need it too (see #ticket if unsure).`
+                            : "";
                         await user.send(
                             `Thanks for your purchase!\n\n**${event.product?.title || "Your order"}**\n\n` +
                             `The download link was sent to your email and is available in your lava.top account:\n` +
-                            `https://app.lava.top/my-purchases`
+                            `https://app.lava.top/my-purchases${flashCollectionNote}`
                         );
                         console.log(`Purchase confirmation DM sent to ${discordId} (${event.product?.title})`);
                     } catch (err) {

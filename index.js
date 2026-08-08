@@ -379,9 +379,11 @@ Pair it with Muzzle Core FX to upgrade both your graphics and weapon effects.
             .setDescription(
 `# ⚡ Muzzle Core FX | Flash Collection
 
+### ⚠️ This is an ADD-ON — it requires the base Muzzle Core FX tool, sold separately. Don't already own it? Get it first, this alone won't work on its own.
+
 ### Expand your arsenal with four brand-new cinematic muzzle flash textures.
 
-Flash Collection introduces 4 new high-quality muzzle flash variants, fully integrated into the Muzzle Core Configurator for instant preview and one-click selection.
+Flash Collection introduces 4 new high-quality muzzle flash variants, fully integrated into your already-installed Muzzle Core Configurator for instant preview and one-click selection.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━
 
