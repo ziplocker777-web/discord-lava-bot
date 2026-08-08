@@ -408,7 +408,14 @@ Choose your favorite flash and rebuild your configuration in seconds.
                 .setCustomId(`buy_${PRODUCT_ID_FLASHCOLLECTION}`)
                 .setStyle(ButtonStyle.Success)
                 .setLabel("Buy Now")
-                .setEmoji("💳")
+                .setEmoji("💳"),
+            // Right next to the add-on's own buy button, so anyone who doesn't already
+            // own the base tool can get it in one click instead of hunting for /panel.
+            new ButtonBuilder()
+                .setCustomId(`buy_${PRODUCT_ID}`)
+                .setStyle(ButtonStyle.Secondary)
+                .setLabel("Get Muzzle Core FX (base tool)")
+                .setEmoji("🧩")
         );
 
         await interaction.channel.send({ embeds: [embed], components: [row] });
