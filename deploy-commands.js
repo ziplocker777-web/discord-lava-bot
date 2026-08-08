@@ -32,10 +32,6 @@ const commands = [
     .setDescription("Send the Membership subscription purchase panel")
     .toJSON(),
   new SlashCommandBuilder()
-    .setName("panelflashcollection")
-    .setDescription("Send the Muzzle Core FX | Flash Collection purchase panel")
-    .toJSON(),
-  new SlashCommandBuilder()
     .setName("panelaudio")
     .setDescription("Send the Complete Audio Overhaul purchase panel")
     .toJSON(),

@@ -276,6 +276,12 @@ Fully compatible with NVE, QuantV and most visual overhauls.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━
 
+⚡ **Optional add-on: Flash Collection — $5.00**
+
+Already own Muzzle Core FX? Expand it with 4 more cinematic muzzle flash textures, fully integrated into the same configurator for instant preview and one-click selection. Requires the base tool above — buy that first if you don't have it yet.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━
+
 # 💰 Price: $9.99`
             )
             .setImage("https://cdn.discordapp.com/attachments/1521243996482175147/1521244405049331712/Frame_42.png?ex=6a4cb281&is=6a4b6101&hm=fd414f16a1fc8047cdf19e2583f41adc6740cbc74dd50a8b9cf6d04cc45a615f&")
@@ -286,7 +292,12 @@ Fully compatible with NVE, QuantV and most visual overhauls.
                 .setCustomId(`buy_${PRODUCT_ID}`)
                 .setStyle(ButtonStyle.Success)
                 .setLabel("Buy Now")
-                .setEmoji("💳")
+                .setEmoji("💳"),
+            new ButtonBuilder()
+                .setCustomId(`buy_${PRODUCT_ID_FLASHCOLLECTION}`)
+                .setStyle(ButtonStyle.Secondary)
+                .setLabel("Add Flash Collection ($5)")
+                .setEmoji("⚡")
         );
 
         await interaction.channel.send({ embeds: [embed], components: [row] });
@@ -362,60 +373,6 @@ Pair it with Muzzle Core FX to upgrade both your graphics and weapon effects.
                 .setStyle(ButtonStyle.Success)
                 .setLabel("Buy Now")
                 .setEmoji("💳")
-        );
-
-        await interaction.channel.send({ embeds: [embed], components: [row] });
-
-        return interaction.reply({
-            content: "✅ Panel created.",
-            ephemeral: true,
-        });
-    }
-
-    // ================= PANEL: MUZZLE CORE FX | FLASH COLLECTION =================
-    if (interaction.isChatInputCommand() && interaction.commandName === "panelflashcollection") {
-        const embed = new EmbedBuilder()
-            .setColor("#3DDC84")
-            .setDescription(
-`# ⚡ Muzzle Core FX | Flash Collection
-
-### ⚠️ This is an ADD-ON — it requires the base Muzzle Core FX tool, sold separately. Don't already own it? Get it first, this alone won't work on its own.
-
-### Expand your arsenal with four brand-new cinematic muzzle flash textures.
-
-Flash Collection introduces 4 new high-quality muzzle flash variants, fully integrated into your already-installed Muzzle Core Configurator for instant preview and one-click selection.
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-🔥 **Includes**
-
-• 4 New Muzzle Flash Textures
-• Instant Preview in the Configurator
-• One-Click Selection
-• Story Mode & FiveM Support
-• Compatible with Existing Presets
-
-Choose your favorite flash and rebuild your configuration in seconds.
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-# 💰 Price: $5.00`
-            )
-            .setFooter({ text: "Official Ziplocker Store • Secure payment via Lava" });
-
-        const row = new ActionRowBuilder().addComponents(
-            new ButtonBuilder()
-                .setCustomId(`buy_${PRODUCT_ID_FLASHCOLLECTION}`)
-                .setStyle(ButtonStyle.Success)
-                .setLabel("Buy Now")
-                .setEmoji("💳"),
-            // Right next to the add-on's own buy button, so anyone who doesn't already
-            // own the base tool can get it in one click instead of hunting for /panel.
-            new ButtonBuilder()
-                .setCustomId(`buy_${PRODUCT_ID}`)
-                .setStyle(ButtonStyle.Secondary)
-                .setLabel("Get Muzzle Core FX (base tool)")
-                .setEmoji("🧩")
         );
 
         await interaction.channel.send({ embeds: [embed], components: [row] });
