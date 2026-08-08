@@ -296,7 +296,7 @@ Already own Muzzle Core FX? Expand it with 4 more cinematic muzzle flash texture
             new ButtonBuilder()
                 .setCustomId(`buy_${PRODUCT_ID_FLASHCOLLECTION}`)
                 .setStyle(ButtonStyle.Secondary)
-                .setLabel("Add Flash Collection ($5)")
+                .setLabel("Flash Collection — $5")
                 .setEmoji("⚡")
         );
 
