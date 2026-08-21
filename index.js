@@ -768,6 +768,8 @@ One membership. Every visual upgrade.
 
 🩸 Blood Mod
 
+🔊 Complete Audio Overhaul
+
 🖼️ Future Graphics Packs
 
 🔄 Future Updates
