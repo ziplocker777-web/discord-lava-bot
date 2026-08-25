@@ -121,6 +121,12 @@ async function findCompletedSaleByEmail(email) {
                 status: match.status,
                 created: match.created,
                 contractId: match.contractId || null,
+                // The subscription tiers are three offers of one product, so the product
+                // id alone can't say which one this is. item.id here is the OFFER id,
+                // which can - it's the only exact tier signal anywhere in the API.
+                offerId: match.id || null,
+                amount: match.amountTotal?.amount,
+                currency: match.amountTotal?.currency,
             };
         }
     }
@@ -141,4 +147,42 @@ async function cancelSubscription({ contractId, email }) {
     return data;
 }
 
-module.exports = { createInvoice, cancelSubscription, findCompletedSaleByEmail };
+// Reads the live per-currency price of every offer on a product. The subscription
+// tiers are priced in USD and lava.top derives RUB and EUR from that, re-deriving
+// them as the rate moves — so the reference prices compiled into roles.js go stale
+// on their own. Pulling them at startup keeps tier detection matching what buyers
+// are actually charged; roles.js falls back to its compiled table if this fails.
+//
+// v2 rather than v3: /products only exists on v2 (v3 answers 404).
+const API_V2 = axios.create({
+    baseURL: "https://gate.lava.top/api/v2",
+    headers: { "X-Api-Key": process.env.LAVA_API_KEY },
+    timeout: 15000,
+});
+
+async function fetchOfferPrices(productId) {
+    const { data } = await API_V2.get("/products");
+    const items = data.items || data || [];
+
+    for (const item of items) {
+        const product = item.data || item;
+        if (product.id !== productId) continue;
+
+        const byOffer = {};
+        for (const offer of product.offers || []) {
+            const prices = {};
+            for (const price of offer.prices || []) {
+                if (price.currency && typeof price.amount === "number") {
+                    prices[String(price.currency).toUpperCase()] = price.amount;
+                }
+            }
+            if (Object.keys(prices).length > 0) byOffer[offer.id] = prices;
+        }
+        return byOffer;
+    }
+
+    return null;
+}
+
+module.exports = { createInvoice, cancelSubscription, findCompletedSaleByEmail, fetchOfferPrices };
+

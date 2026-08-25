@@ -11,13 +11,27 @@ const {
     ModalBuilder,
     TextInputBuilder,
     TextInputStyle,
+    AttachmentBuilder,
 } = require("discord.js");
+
+const path = require("path");
+
+// The embroidered tier patches, shipped in the repo and attached to each panel.
+// Resolved from __dirname so the panels keep working whatever directory pm2
+// happens to start the bot from.
+const tierBannerPath = (file) => path.join(__dirname, "assets", "tiers", file);
 
 const { startWebhookServer, revokeRole, WATERMARKED_PRODUCT_IDS } = require("./webhookServer.js");
 const { getAllPurchases, getPurchaseForProduct, recordPurchase } = require("./purchaseStore.js");
 const { isRefunded } = require("./refundedEmails.js");
-const { createInvoice, cancelSubscription, findCompletedSaleByEmail } = require("./lavaClient.js");
-const { getRolesForProduct, SUBSCRIPTION_PRODUCT_ID } = require("./roles.js");
+const { createInvoice, cancelSubscription, findCompletedSaleByEmail, fetchOfferPrices } = require("./lavaClient.js");
+const {
+    getRolesForPurchase,
+    resolveTierWithLegacyFallback,
+    tierDownloadsChannelId,
+    applyLivePrices,
+    SUBSCRIPTION_PRODUCT_ID,
+} = require("./roles.js");
 const { deliverPurchase, buildDeliveryMessage } = require("./delivery.js");
 
 const PRODUCT_ID = "04c91dde-254e-45ce-becb-5ab22a86cfca"; // Muzzle Core FX offerId
@@ -29,6 +43,8 @@ const PRODUCT_ID_GRAPHICS_V2 = "f4eadbcb-0353-4cb8-a759-e6d471c35c36"; // Ziploc
 const PRODUCT_ID_SUBSCRIBE = "fd9076bc-1285-4fa5-a55d-86657ad32ab5"; // Membership (Subscription ziplocker) offerId
 const PRODUCT_ID_FLASHCOLLECTION = "c993d7c1-fe58-4ea6-9cdb-6b9f0128edc2"; // Muzzle Core FX | Flash Collection offerId (тот же продукт, что раньше был Variant III)
 const PRODUCT_ID_AUDIO = "783191f9-2802-4cf7-93ea-1caf75b28403"; // Complete Audio Overhaul offerId
+const PRODUCT_ID_BASIC = "82093c36-a7fd-42f6-9ede-6ac29adcbc34"; // Basic offerId — $5.99/mo
+const PRODUCT_ID_PREMIUM = "d1fa96bf-b9c3-42db-ab5d-53749b4f0f07"; // Premium offerId — $14.99/mo
 
 const client = new Client({
     intents: [GatewayIntentBits.Guilds],
@@ -117,7 +133,7 @@ async function verifyPurchaseAndDeliver(interaction, email) {
         let anyRolesConfigured = false;
 
         for (const purchase of purchases) {
-            const roleIds = getRolesForProduct(purchase.productId);
+            const roleIds = getRolesForPurchase(purchase);
             if (roleIds.length > 0) anyRolesConfigured = true;
 
             for (const roleId of roleIds) {
@@ -131,7 +147,16 @@ async function verifyPurchaseAndDeliver(interaction, email) {
             // свежую вотермарк-ссылку + ключ при каждом прогоне — не только когда
             // роль отсутствовала. Это и есть способ, которым уже верифицированные
             // покупатели сами переходят на новую версию или восстанавливают ключ.
-            if (WATERMARKED_PRODUCT_IDS.has(purchase.productId)) {
+            // Same tier gate as the webhook: the subscription product covers three
+            // tiers and only the ones that include Muzzle Core FX may be re-issued the
+            // configurator here. Without this, a Basic member could pull the
+            // app they didn't pay for just by running /getrole.
+            const tier = resolveTierWithLegacyFallback(purchase);
+            const mayDeliverConfigurator =
+                WATERMARKED_PRODUCT_IDS.has(purchase.productId) &&
+                (purchase.productId !== SUBSCRIPTION_PRODUCT_ID || Boolean(tier?.includesConfigurator));
+
+            if (mayDeliverConfigurator) {
                 try {
                     const { downloadUrl, licenseKey } = deliverPurchase({
                         email,
@@ -146,6 +171,8 @@ async function verifyPurchaseAndDeliver(interaction, email) {
                             productTitle: purchase.productTitle,
                             downloadUrl,
                             licenseKey,
+                            tierLabel: tier?.label,
+                            downloadsChannelId: tierDownloadsChannelId(tier),
                             greeting: "Here's a fresh copy of your download!",
                         }));
                         deliveredTitles.push(purchase.productTitle || purchase.productId);
@@ -207,7 +234,26 @@ async function verifyPurchaseAndDeliver(interaction, email) {
 client.once(Events.ClientReady, () => {
     console.log(`${client.user.tag} is online.`);
     startWebhookServer(client); // клиенту нужен доступ к guild/member для выдачи роли
+    refreshTierPrices();
 });
+
+// The subscription webhook carries no offer id, so which tier was paid for has to be
+// worked out from the amount — which means the amounts we compare against have to be
+// current. USD is fixed, but lava.top re-derives the RUB and EUR prices as the rate
+// moves, so the table compiled into roles.js drifts away from what buyers are charged.
+// Pulling the live prices once at startup removes that drift; if the call fails the
+// compiled table stays in use, which is why this never throws.
+async function refreshTierPrices() {
+    try {
+        const prices = await fetchOfferPrices(SUBSCRIPTION_PRODUCT_ID);
+        const updated = applyLivePrices(prices);
+        console.log(updated > 0
+            ? `[tiers] live prices loaded for ${updated} subscription tier(s).`
+            : "[tiers] no live prices returned — using the prices compiled into roles.js.");
+    } catch (err) {
+        console.warn(`[tiers] live price lookup failed (${err.message}) — using the prices compiled into roles.js.`);
+    }
+}
 
 client.on(Events.InteractionCreate, async (interaction) => {
 
@@ -747,43 +793,111 @@ Includes everything needed, along with a simple installation guide to get starte
         });
     }
 
-    // ================= PANEL: MEMBERSHIP (SUBSCRIPTION) =================
-    if (interaction.isChatInputCommand() && interaction.commandName === "panelsubscribe") {
+    // ================= TIER PANELS (Basic / Membership / Premium) =================
+    // Meant to be posted together, cheapest first, so the ladder reads top to bottom.
+    // Premium exists as much to anchor the price as to sell: next to $14.99, Membership
+    // reads as the sensible middle rather than the expensive option.
+    //
+    // The names match the offer names on lava.top exactly. They have to: the checkout
+    // page shows the offer name, so a buyer who clicked "Basic" here must not arrive at
+    // a page calling it something else.
+    //
+    // Each panel carries its embroidered patch as a real file attachment rather than a
+    // link. Discord's own CDN urls are signed and expire, so an embed pointing at one
+    // would quietly turn into a broken image on a message meant to stay up for months.
+    // An attachment is part of the message and lasts as long as it does.
+
+    if (interaction.isChatInputCommand() && interaction.commandName === "panelbasic") {
+        const banner = new AttachmentBuilder(tierBannerPath("basic.png"));
+
         const embed = new EmbedBuilder()
-            .setColor("#95ff00")
+            .setColor("#FFFFFF")
             .setDescription(
-`# 💎 Membership
+`# 🎒 Basic
 
-### Unlimited access to the complete graphics library.
+### Everything outside the Muzzle Core FX line.
 
-One membership. Every visual upgrade.
+Audio, blood and graphics in one subscription — and every new release outside the Muzzle Core FX line is added to it automatically as it ships.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 **Included:**
 
-🎨 All Graphics Packs
-
-🔥 Muzzle Core FX
-
-🩸 Blood Mod
-
 🔊 Complete Audio Overhaul
 
-🖼️ Future Graphics Packs
+🩸 Ziplocker's Blood FX
 
-🔄 Future Updates
+🎨 Ziplocker's Graphics V2
 
-📦 Beta Builds
+☀️ Ziplocker Summer Visuals
 
-💡 Suggest Features & Vote on Future Updates
+🔄 Future releases outside the Muzzle Core FX line
 
-👀 Exclusive Sneak Peeks
+━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+**Not included:** Muzzle Core FX, Graphics Pack V1 and Graphics Pack V2 — both packs bundle Muzzle Core FX inside them. All three come with **Membership**.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+# 💰 Price: $5.99 / month`
+            )
+            .setImage("attachment://basic.png")
+            .setFooter({ text: "Official Ziplocker Store • Secure payment via Lava" });
+
+        const row = new ActionRowBuilder().addComponents(
+            new ButtonBuilder()
+                .setCustomId(`buy_${PRODUCT_ID_BASIC}`)
+                .setStyle(ButtonStyle.Secondary)
+                .setLabel("Subscribe")
+                .setEmoji("💳")
+        );
+
+        await interaction.channel.send({ embeds: [embed], files: [banner], components: [row] });
+
+        return interaction.reply({
+            content: "✅ Panel created.",
+            ephemeral: true,
+        });
+    }
+
+    if (interaction.isChatInputCommand() && interaction.commandName === "panelmembership") {
+        const banner = new AttachmentBuilder(tierBannerPath("membership.png"));
+
+        const embed = new EmbedBuilder()
+            // Not #000000: Discord reads a colour of exactly zero as "no colour set" and
+            // falls back to its default grey bar, so the black tier would be the only one
+            // without a stripe. One step off zero looks black and still counts as a colour.
+            .setColor("#010101")
+            .setDescription(
+`# 💎 Membership
+
+### Everything in the workshop. Now, and whatever comes next.
+
+Muzzle Core FX, both graphics packs, and every release that follows. Nothing is held back and nothing costs extra.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+**Included:**
+
+🎒 Everything in Basic
+
+🔥 Muzzle Core FX — full version
+
+🎨 Graphics Pack V1
+
+🎨 Graphics Pack V2
+
+🔄 Every future release — packs, mods and updates, the day they ship
+
+🗳️ A vote in every poll on what gets built next
+
+👀 Exclusive sneak peeks
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 # 💰 Price: $9.99 / month`
             )
+            .setImage("attachment://membership.png")
             .setFooter({ text: "Official Ziplocker Store • Secure payment via Lava" });
 
         const row = new ActionRowBuilder().addComponents(
@@ -794,7 +908,58 @@ One membership. Every visual upgrade.
                 .setEmoji("💳")
         );
 
-        await interaction.channel.send({ embeds: [embed], components: [row] });
+        await interaction.channel.send({ embeds: [embed], files: [banner], components: [row] });
+
+        return interaction.reply({
+            content: "✅ Panel created.",
+            ephemeral: true,
+        });
+    }
+
+    if (interaction.isChatInputCommand() && interaction.commandName === "panelpremium") {
+        const banner = new AttachmentBuilder(tierBannerPath("premium.png"));
+
+        const embed = new EmbedBuilder()
+            .setColor("#8B5CF6")
+            .setDescription(
+`# 👑 Premium
+
+### Everything Membership gives you, plus a hand on the wheel.
+
+Membership gets you everything that exists. Premium decides what exists next — and puts it in your hands before anyone else.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+**Included:**
+
+💎 Everything in Membership
+
+📦 Beta builds — try new work while it's still being made
+
+⚡ Early access — finished releases reach you before anyone else
+
+💡 Suggest your own ideas — not just vote on the options
+
+🗳️ Your idea goes up as a poll for everyone to vote on
+
+🎫 Priority tickets — your own queue, answered ahead of the rest
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+# 💰 Price: $14.99 / month`
+            )
+            .setImage("attachment://premium.png")
+            .setFooter({ text: "Official Ziplocker Store • Secure payment via Lava" });
+
+        const row = new ActionRowBuilder().addComponents(
+            new ButtonBuilder()
+                .setCustomId(`buy_${PRODUCT_ID_PREMIUM}`)
+                .setStyle(ButtonStyle.Primary)
+                .setLabel("Subscribe")
+                .setEmoji("💳")
+        );
+
+        await interaction.channel.send({ embeds: [embed], files: [banner], components: [row] });
 
         return interaction.reply({
             content: "✅ Panel created.",

@@ -28,8 +28,16 @@ const commands = [
     .setDescription("Send the Ziplocker's Graphics V2 purchase panel")
     .toJSON(),
   new SlashCommandBuilder()
-    .setName("panelsubscribe")
-    .setDescription("Send the Membership subscription purchase panel")
+    .setName("panelbasic")
+    .setDescription("Send the Basic tier panel ($5.99/mo)")
+    .toJSON(),
+  new SlashCommandBuilder()
+    .setName("panelmembership")
+    .setDescription("Send the Membership tier panel ($9.99/mo)")
+    .toJSON(),
+  new SlashCommandBuilder()
+    .setName("panelpremium")
+    .setDescription("Send the Premium tier panel ($14.99/mo)")
     .toJSON(),
   new SlashCommandBuilder()
     .setName("panelaudio")

@@ -1,7 +1,14 @@
 require("dotenv").config();
 const express = require("express");
 const { recordPurchase, getPurchaseForProduct } = require("./purchaseStore");
-const { getRolesForProduct, getRolesToRevokeOnCancellation, SUBSCRIPTION_PRODUCT_ID } = require("./roles");
+const {
+    getRolesForPurchase,
+    getRolesToRevokeOnCancellation,
+    resolveSubscriptionTier,
+    tierDownloadsChannelId,
+    getAllTierRoleIds,
+    SUBSCRIPTION_PRODUCT_ID,
+} = require("./roles");
 const { deliverPurchase, streamWatermarkedPackage, buildDeliveryMessage } = require("./delivery");
 const { registerPresetsApi } = require("./presetsApi");
 const { registerActivateApi } = require("./activateApi");
@@ -142,6 +149,12 @@ function startWebhookServer(client) {
                 const email = event.buyer?.email;
                 const discordId = event.clientUtm?.utm_content || null;
 
+                // All three subscription tiers share one product id, so this is the
+                // only thing that tells them apart — and it decides both which role
+                // is granted and whether the configurator is delivered at all.
+                const tier = resolveSubscriptionTier(event);
+                if (tier) console.log(`Subscription tier resolved: ${tier.label} (${tier.key})`);
+
                 if (email) {
                     // На событии subscription.recurring.payment.success у lava.top
                     // есть ДВА разных id: event.contractId — это контракт именно
@@ -157,7 +170,12 @@ function startWebhookServer(client) {
                         productTitle: event.product?.title,
                         contractId: contractIdToStore,
                         timestamp: event.timestamp,
-                        discordId
+                        discordId,
+                        // Kept so /getrole and the admin scripts don't have to work the
+                        // tier out again from a price that will have moved by then.
+                        tier: tier?.key,
+                        amount: event.amount,
+                        currency: event.currency,
                     });
 
                     console.log(`Purchase recorded for ${email} (discordId: ${discordId || "—"}, contractId: ${contractIdToStore})`);
@@ -165,7 +183,7 @@ function startWebhookServer(client) {
 
                 if (discordId) {
                     try {
-                        await grantRole(client, discordId, event.product?.id);
+                        await grantRole(client, discordId, event);
                     } catch (err) {
                         console.error("Role grant failed inside Discord:", err.message);
                     }
@@ -173,7 +191,15 @@ function startWebhookServer(client) {
                     console.warn("Webhook without discordId in clientUtm.utm_content — role not granted automatically.");
                 }
 
-                if (discordId && email && WATERMARKED_PRODUCT_IDS.has(event.product?.id)) {
+                // For the subscription product the product id alone isn't enough: only
+                // the tiers that actually include Muzzle Core FX may be handed the
+                // watermarked configurator. Basic is priced on the promise that
+                // it doesn't contain it.
+                const deliversConfigurator =
+                    WATERMARKED_PRODUCT_IDS.has(event.product?.id) &&
+                    (event.product?.id !== SUBSCRIPTION_PRODUCT_ID || Boolean(tier?.includesConfigurator));
+
+                if (discordId && email && deliversConfigurator) {
                     try {
                         const { downloadUrl, licenseKey, isNew } = deliverPurchase({
                             email,
@@ -198,6 +224,8 @@ function startWebhookServer(client) {
                                     productTitle: event.product?.title,
                                     downloadUrl,
                                     licenseKey,
+                                    tierLabel: tier?.label,
+                                    downloadsChannelId: tierDownloadsChannelId(tier),
                                     greeting,
                                 }));
                                 console.log(`Watermarked download delivered to ${discordId} (${event.product?.title})`);
@@ -230,11 +258,23 @@ function startWebhookServer(client) {
                         const flashCollectionNote = event.product?.id === KNOWN_PRODUCT_IDS["Muzzle Core FX | Flash Collection"]
                             ? `\n\n⚠️ This is an add-on for the Muzzle Core FX configurator — it does NOT include the app itself. If you don't already own Muzzle Core FX, you'll need it too (see #ticket if unsure).`
                             : "";
-                        await user.send(
-                            `Thanks for your purchase!\n\n**${event.product?.title || "Your order"}**\n\n` +
-                            `The download link was sent to your email and is available in your lava.top account:\n` +
-                            `https://app.lava.top/my-purchases${flashCollectionNote}`
-                        );
+                        // A tier that doesn't include the configurator also lands here, and for
+                        // it the raw product title ("Subscription ziplocker") says nothing, nor is
+                        // there a lava.top download to point at: everything that tier covers is
+                        // posted in the subscriber channel.
+                        const tierChannelId = tierDownloadsChannelId(tier);
+                        const subscriberChannelNote = tierChannelId
+                            ? `<#${tierChannelId}>`
+                            : "your subscriber channel";
+
+                        const confirmation = tier
+                            ? `Thanks for subscribing!\n\nYour **${tier.label}** subscription is active and your role has been applied.\n\n` +
+                              `Everything it includes is posted in ${subscriberChannelNote} — head there for the downloads.`
+                            : `Thanks for your purchase!\n\n**${event.product?.title || "Your order"}**\n\n` +
+                              `The download link was sent to your email and is available in your lava.top account:\n` +
+                              `https://app.lava.top/my-purchases${flashCollectionNote}`;
+
+                        await user.send(confirmation);
                         console.log(`Purchase confirmation DM sent to ${discordId} (${event.product?.title})`);
                     } catch (err) {
                         console.error("Purchase confirmation DM failed:", err.message);
@@ -279,7 +319,7 @@ function startWebhookServer(client) {
 
                 if (discordId) {
                     try {
-                        await revokeRole(client, discordId);
+                        await revokeRole(client, discordId, event);
                     } catch (err) {
                         console.error("Role revoke failed inside Discord:", err.message);
                     }
@@ -316,7 +356,7 @@ function startWebhookServer(client) {
     });
 }
 
-async function grantRole(client, discordId, productId) {
+async function grantRole(client, discordId, purchase) {
     const guild = await client.guilds.fetch(process.env.GUILD_ID);
     // force: true — discord.js по умолчанию отдаёт участника из кэша, если он
     // там уже есть, и НЕ делает свежий запрос к API. Если роли менялись не
@@ -324,10 +364,10 @@ async function grantRole(client, discordId, productId) {
     // быть устаревшим — тогда member.roles.cache ниже врёт.
     const member = await guild.members.fetch({ user: discordId, force: true });
 
-    const roleIds = getRolesForProduct(productId);
+    const roleIds = getRolesForPurchase(purchase);
 
     if (roleIds.length === 0) {
-        console.warn(`No roles configured for product ${productId} — nothing granted.`);
+        console.warn(`No roles configured for product ${purchase?.productId} — nothing granted.`);
         return;
     }
 
@@ -339,16 +379,31 @@ async function grantRole(client, discordId, productId) {
         await member.roles.add(roleId);
         console.log(`Role ${roleId} granted to ${discordId}`);
     }
+
+    // The tiers are a ladder, not a collection: someone moving from Basic to
+    // Premium must stop being Basic, or the cheapest role they ever held would
+    // keep letting them into everything it unlocks. Only runs when a tier role was
+    // actually granted above — an ordinary one-off purchase must not touch the
+    // subscription roles of a member who also happens to be subscribed.
+    const grantedTierRoles = getAllTierRoleIds().filter((id) => roleIds.includes(id));
+    if (grantedTierRoles.length === 0) return;
+
+    for (const staleRoleId of getAllTierRoleIds()) {
+        if (grantedTierRoles.includes(staleRoleId)) continue;
+        if (!member.roles.cache.has(staleRoleId)) continue;
+        await member.roles.remove(staleRoleId);
+        console.log(`Superseded tier role ${staleRoleId} removed from ${discordId}`);
+    }
 }
 
-async function revokeRole(client, discordId) {
+async function revokeRole(client, discordId, purchase) {
     const guild = await client.guilds.fetch(process.env.GUILD_ID);
     const member = await guild.members.fetch({ user: discordId, force: true });
 
-    const roleIds = getRolesToRevokeOnCancellation();
+    const roleIds = getRolesToRevokeOnCancellation(purchase);
 
     if (roleIds.length === 0) {
-        console.warn("SUBSCRIBE_ROLE_ID is not configured — nothing to revoke.");
+        console.warn("No tier role ids configured (BASIC_ROLE_ID / SUBSCRIBE_ROLE_ID / PREMIUM_ROLE_ID) — nothing to revoke.");
         return;
     }
 

@@ -60,16 +60,24 @@ function deliverPurchase({ email, discordId, productId, productTitle }) {
 // admin delivery) — the subscription's raw product title ("Subscription ziplocker")
 // isn't what's actually being downloaded, so it gets its own explanation instead of
 // just printing the title, plus a pointer to the channel with the rest of its mods.
-function buildDeliveryMessage({ productId, productTitle, downloadUrl, licenseKey, greeting = "Thanks for your purchase!" }) {
+function buildDeliveryMessage({ productId, productTitle, downloadUrl, licenseKey, tierLabel, downloadsChannelId, greeting = "Thanks for your purchase!" }) {
     const isSubscription = productId === SUBSCRIPTION_PRODUCT_ID;
 
+    // "Subscription ziplocker" is the raw lava.top product name shared by all three
+    // tiers, and is never shown to a buyer. They get the tier they actually bought.
+    // "subscription" rather than "membership" as the noun, because one of the tiers is
+    // itself called Membership and "your Membership membership" reads like a stutter.
+    const planName = tierLabel ? `**${tierLabel}** subscription` : "subscription";
+
     const intro = isSubscription
-        ? `${greeting}\n\nYour membership includes the **Muzzle Core Configurator** — the tool for customizing muzzle flash, sparks, smoke, tracers and bullet impacts:\n${downloadUrl}`
+        ? `${greeting}\n\nYour ${planName} includes the **Muzzle Core Configurator** — the tool for customizing muzzle flash, sparks, smoke, tracers and bullet impacts:\n${downloadUrl}`
         : `${greeting}\n\n**${productTitle || "Your download"}**\n${downloadUrl}`;
 
+    // Passed in rather than read from a global: each tier has its own downloads
+    // channel, and only the caller knows which tier this delivery is for.
     const channelNote = isSubscription
-        ? (process.env.SUBSCRIBER_CHANNEL_ID
-            ? `\n\nAlso check out <#${process.env.SUBSCRIBER_CHANNEL_ID}> — that's where the rest of the mods included in your membership are posted.`
+        ? (downloadsChannelId
+            ? `\n\nAlso check out <#${downloadsChannelId}> — that's where the rest of the mods included in your membership are posted.`
             : "\n\nAlso check out your subscriber channel — that's where the rest of the mods included in your membership are posted.")
         : "";
 
