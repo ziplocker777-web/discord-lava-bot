@@ -73,6 +73,11 @@ const commands = [
     .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
     .toJSON(),
   new SlashCommandBuilder()
+    .setName("paneldirectory")
+    .setDescription("Post the mod directory")
+    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
+
+new SlashCommandBuilder()
     .setName("aiusage")
     .setDescription("How many tokens the AI assistant has spent, and how many are left")
     .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)

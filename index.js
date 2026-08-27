@@ -30,6 +30,7 @@ const {
 const {
     buildAnswerEmbed, buildAnswerComponents, parseFeedbackId,
 } = require("./aiEmbed.js");
+const { buildDirectoryEmbeds } = require("./modDirectory.js");
 const { createInvoice, cancelSubscription, findCompletedSaleByEmail, fetchOfferPrices } = require("./lavaClient.js");
 const {
     getRolesForPurchase,
@@ -1047,6 +1048,15 @@ Membership gets you everything that exists. Premium decides what exists next —
         }
 
         return interaction.reply({ embeds: [embed], ephemeral: true });
+    }
+
+    // ================= /paneldirectory =================
+    // Posted by the bot so the links render as names. Pasted by hand they would
+    // be fourteen raw URLs, which is why this command exists at all.
+    if (interaction.isChatInputCommand() && interaction.commandName === "paneldirectory") {
+        await interaction.reply({ content: "Posting the directory…", ephemeral: true });
+        await interaction.channel.send({ embeds: buildDirectoryEmbeds() });
+        return interaction.editReply({ content: "Posted." });
     }
 
     // ================= AI ANSWER FEEDBACK =================
