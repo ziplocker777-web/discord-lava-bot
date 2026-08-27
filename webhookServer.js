@@ -77,21 +77,34 @@ function isPaymentSuccessEvent(event) {
 
 function isFinalCancellationEvent(event) {
     const type = (event.eventType || "").toLowerCase();
+    const status = (event.status || "").toLowerCase();
     if (!type) return false;
 
     if (FINAL_CANCELLATION_EVENT_TYPES.includes(type)) return true;
 
     // Loose fallback — только "cancel", "fail" сюда намеренно не входит.
-    return type.includes("subscription") && type.includes("cancel");
+    //
+    // Read from status as well as type. Observed 2026-08-25: lava.top sends
+    // eventType "payment.failed" and puts the subscription part in status,
+    // e.g. "subscription-failed". Looking only at type, a real cancellation
+    // arriving that way falls through to "Event ... ignored" and the role is
+    // never removed. isPaymentSuccessEvent already reads status; these two
+    // did not, which is the whole of the bug.
+    const both = type + " " + status;
+    return both.includes("subscription") && both.includes("cancel");
 }
 
 function isRenewalFailureEvent(event) {
     const type = (event.eventType || "").toLowerCase();
+    const status = (event.status || "").toLowerCase();
     if (!type) return false;
 
     if (RENEWAL_FAILURE_EVENT_TYPES.includes(type)) return true;
 
-    return type.includes("subscription") && type.includes("fail") && !type.includes("cancel");
+    // Same reason as above: "payment.failed" + status "subscription-failed" is
+    // how a failed charge on a subscription actually arrives.
+    const both = type + " " + status;
+    return both.includes("subscription") && both.includes("fail") && !both.includes("cancel");
 }
 
 function checkApiKey(req, res, next) {
