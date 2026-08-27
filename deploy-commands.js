@@ -44,6 +44,16 @@ const commands = [
     .setDescription("Send the Complete Audio Overhaul purchase panel")
     .toJSON(),
   new SlashCommandBuilder()
+    .setName("ask")
+    .setDescription("Ask a question about the mods, installation, or your subscription")
+    .addStringOption(option =>
+      option
+        .setName("question")
+        .setDescription("What do you want to know?")
+        .setRequired(true)
+    )
+    .toJSON(),
+  new SlashCommandBuilder()
     .setName("getrole")
     .setDescription("Send the role verification panel")
     .toJSON(),

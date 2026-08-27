@@ -52,6 +52,17 @@ function deliverPurchase({ email, discordId, productId, productTitle }) {
     if (!TEMPLATE_DIR || !PUBLIC_BASE_URL) {
         throw new Error("APP_TEMPLATE_DIR and PUBLIC_BASE_URL must be set in .env for automatic delivery.");
     }
+    // The .env ships with PUBLIC_BASE_URL=https://your-domain-or-ip:PORT, which is
+    // truthy — so the check above passes and the buyer is handed a link to a host
+    // that does not exist. Failing here instead means the purchase lands in the
+    // error path, where somebody sees it, rather than looking like a success.
+    if (/your-domain-or-ip|localhost|PORT/.test(PUBLIC_BASE_URL)) {
+        throw new Error(
+            `PUBLIC_BASE_URL is still the placeholder (${PUBLIC_BASE_URL}). ` +
+            "Set it to the address this bot is actually reachable at, with no " +
+            "trailing slash, before automatic delivery can work."
+        );
+    }
     const { token, licenseKey, isNew } = createWatermark({ email, discordId, productId, productTitle });
     return { downloadUrl: buildDownloadUrl(token), licenseKey, isNew };
 }

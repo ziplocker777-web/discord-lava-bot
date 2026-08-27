@@ -11,6 +11,7 @@
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.121.0",
     "archiver": "^7.0.1",
     "axios": "^1.18.1",
     "discord.js": "^14.26.4",

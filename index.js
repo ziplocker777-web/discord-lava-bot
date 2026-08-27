@@ -1,4 +1,4 @@
-require("dotenv").config();
+require("./env.js").loadEnv();
 
 const {
     Client,
@@ -24,6 +24,12 @@ const tierBannerPath = (file) => path.join(__dirname, "assets", "tiers", file);
 const { startWebhookServer, revokeRole, WATERMARKED_PRODUCT_IDS } = require("./webhookServer.js");
 const { getAllPurchases, getPurchaseForProduct, recordPurchase } = require("./purchaseStore.js");
 const { isRefunded } = require("./refundedEmails.js");
+const {
+    registerAiSupport, handleQuestion, sendWithRetry, recordFeedback,
+} = require("./aiSupport.js");
+const {
+    buildAnswerEmbed, buildAnswerComponents, parseFeedbackId,
+} = require("./aiEmbed.js");
 const { createInvoice, cancelSubscription, findCompletedSaleByEmail, fetchOfferPrices } = require("./lavaClient.js");
 const {
     getRolesForPurchase,
@@ -47,7 +53,23 @@ const PRODUCT_ID_BASIC = "82093c36-a7fd-42f6-9ede-6ac29adcbc34"; // Basic offerI
 const PRODUCT_ID_PREMIUM = "d1fa96bf-b9c3-42db-ab5d-53749b4f0f07"; // Premium offerId — $14.99/mo
 
 const client = new Client({
-    intents: [GatewayIntentBits.Guilds],
+    // Discord is fronted by Cloudflare, and reaching it from here is not always
+    // reliable: connect timeouts to 162.159.x.x were losing about four replies in
+    // ten. discord.js gives up quickly by default, which turns a slow connection
+    // into a message that silently never arrives.
+    rest: {
+        timeout: 30000,
+        retries: 5,
+    },
+    intents: [
+        GatewayIntentBits.Guilds,
+        // Needed by the support assistant, which reads what people type in the
+        // help channel. MessageContent is a privileged intent: it also has to be
+        // switched on in the Discord Developer Portal, or the bot logs in fine
+        // and then sees every message as empty.
+        GatewayIntentBits.GuildMessages,
+        GatewayIntentBits.MessageContent,
+    ],
 });
 
 // Shared by both the "Get Role" panel (role recovery) and the "Redownload" panel
@@ -235,6 +257,7 @@ client.once(Events.ClientReady, () => {
     console.log(`${client.user.tag} is online.`);
     startWebhookServer(client); // клиенту нужен доступ к guild/member для выдачи роли
     refreshTierPrices();
+    registerAiSupport(client, { Events });
 });
 
 // The subscription webhook carries no offer id, so which tier was paid for has to be
@@ -967,6 +990,69 @@ Membership gets you everything that exists. Premium decides what exists next —
         });
     }
 
+    // ================= AI ANSWER FEEDBACK =================
+    // The two buttons under every AI reply. Answered quietly and ephemerally:
+    // this is a signal for the log, not a conversation, and a public "thanks for
+    // your feedback" under every answer would be noise.
+    if (interaction.isButton()) {
+        const parsed = parseFeedbackId(interaction.customId);
+        if (parsed) {
+            const result = recordFeedback({
+                logId: parsed.logId,
+                userId: interaction.user.id,
+                vote: parsed.vote,
+            });
+
+            const reply = !result.ok
+                ? "Couldn't record that — the answer is too old to vote on."
+                : parsed.vote === "up"
+                    ? "Noted, thanks."
+                    : "Noted — this one will get looked at.";
+
+            return interaction.reply({ content: reply, ephemeral: true });
+        }
+    }
+
+    // ================= /ask =================
+    // The same assistant as the help channel, reachable from anywhere. Worth having
+    // as well as the channel: it works in front of the ticket panel, where someone
+    // is already halfway to opening a ticket, and the reply is ephemeral so it
+    // doesn't clutter a channel that isn't meant for chat.
+    if (interaction.isChatInputCommand() && interaction.commandName === "ask") {
+        const question = interaction.options.getString("question");
+        await interaction.deferReply({ ephemeral: true });
+
+        const result = await handleQuestion({
+            question,
+            discordId: interaction.user.id,
+            username: interaction.user.username,
+            source: "slash",
+        });
+
+        if (!result) {
+            return interaction.editReply({
+                content: "Ask me an actual question and I'll try to answer it.",
+            });
+        }
+
+        // Same embed as the help channel, so /ask and the channel look identical.
+        const embed = buildAnswerEmbed({
+            kind: result.kind,
+            text: result.text,
+            question: result.question,
+            user: interaction.user,
+        });
+        const components = buildAnswerComponents({
+            kind: result.kind,
+            logId: result.logId,
+        });
+
+        return sendWithRetry(
+            () => interaction.editReply({ embeds: [embed], components }),
+            "/ask reply"
+        );
+    }
+
     // ================= GET ROLE PANEL (manual fallback) =================
     if (interaction.isChatInputCommand() && interaction.commandName === "getrole") {
         const embed = new EmbedBuilder()
@@ -1234,4 +1320,36 @@ your license key by DM.`
     }
 });
 
-client.login(process.env.DISCORD_TOKEN);
+// A dropped connection deep inside discord.js must not take the whole bot with
+// it. Node's default for an unhandled rejection is to exit the process, which on
+// this network turns a momentary blip into an outage lasting until somebody
+// notices the bot is gone. Logged loudly, but survivable.
+process.on("unhandledRejection", (err) => {
+    console.error("[unhandled rejection]", (err && err.message) || err);
+});
+
+/**
+ * Logging in is the one call that has to succeed before anything else works, and
+ * it goes to the same Cloudflare front that drops connections here often enough
+ * to matter — a ten-second connect timeout at the wrong moment used to kill the
+ * process outright, before the bot had done a single thing.
+ */
+async function login(attempts = 5) {
+    for (let i = 1; i <= attempts; i += 1) {
+        try {
+            await client.login(process.env.DISCORD_TOKEN);
+            return;
+        } catch (err) {
+            console.error(`[startup] login failed (attempt ${i}/${attempts}): ${err.message}`);
+            if (i === attempts) throw err;
+            const wait = Math.min(30000, 2000 * i);
+            console.error(`[startup] retrying in ${wait / 1000}s`);
+            await new Promise((r) => setTimeout(r, wait));
+        }
+    }
+}
+
+login().catch((err) => {
+    console.error("[startup] could not log in to Discord:", err.message);
+    process.exit(1);
+});

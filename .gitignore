@@ -3,3 +3,4 @@ node_modules/
 purchaseStore.json
 watermarkStore.json
 presetsStore.json
+supportLog.json
