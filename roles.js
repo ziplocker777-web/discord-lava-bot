@@ -66,41 +66,6 @@ const TIERS = [
 // failed and the compiled table is being used.
 const MAX_PRICE_DRIFT = 0.15;
 
-// Two subscribers are still paying the original Membership price of $14.99.
-// That is exactly what Premium costs today, so no amount can tell the two apart:
-// matched by price alone, a Membership payment would hand out Premium, with beta
-// builds and early access, every month, for free.
-//
-// Pinned by the things that survive a renewal. NOT by contractId on its own —
-// lava.top issues a fresh contract for every monthly charge and points it back
-// through parentContractId, so the contract seen at signup never appears again
-// as contractId. The discord id is the belt to that pair of braces.
-//
-// Delete an entry when that person moves to current pricing, and delete the
-// whole block when neither is left.
-const LEGACY_MEMBERSHIP = {
-    contracts: new Set([
-        "2512f70d-7f22-462b-99cf-bd6057aec70e", // 6kvolk, subscribed 2026-07-13
-        "d9f16f24-41cc-4536-8cc3-f350732555a6", // arottingcarcass, subscribed 2026-07-24
-    ]),
-    discordIds: new Set([
-        "928911053654466610",  // 6kvolk
-        "1055777253608390707", // arottingcarcass
-    ]),
-};
-
-/** True when this payment belongs to one of the grandfathered subscriptions. */
-function isLegacyMembership(purchase) {
-    const p = purchase || {};
-    const discordId = p.discordId || p.clientUtm?.utm_content;
-    if (discordId && LEGACY_MEMBERSHIP.discordIds.has(String(discordId))) return true;
-
-    for (const id of [p.parentContractId, p.contractId]) {
-        if (id && LEGACY_MEMBERSHIP.contracts.has(String(id))) return true;
-    }
-    return false;
-}
-
 const TIERS_BY_KEY = new Map(TIERS.map((t) => [t.key, t]));
 const TIERS_BY_OFFER = new Map(TIERS.map((t) => [t.offerId, t]));
 
@@ -123,13 +88,6 @@ function resolveSubscriptionTier(purchase = {}) {
     if (tier && TIERS_BY_KEY.has(tier)) return TIERS_BY_KEY.get(tier);
 
     if (productId !== SUBSCRIPTION_PRODUCT_ID) return null;
-
-    // Checked after the exact signals and before the price, because the price is
-    // exactly what is ambiguous for these two.
-    if (isLegacyMembership(purchase)) {
-        console.log("[roles] grandfathered $14.99 Membership — tier pinned, price ignored");
-        return TIERS_BY_KEY.get("membership");
-    }
     if (typeof amount !== "number" || !Number.isFinite(amount) || !currency) return null;
 
     const cur = String(currency).toUpperCase();
@@ -257,7 +215,6 @@ function getRolesToRevokeOnCancellation(purchase) {
 
 module.exports = {
     applyLivePrices,
-    isLegacyMembership,
     tierDownloadsChannelId,
     getRolesForProduct,
     getRolesForPurchase,
