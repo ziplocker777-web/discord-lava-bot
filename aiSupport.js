@@ -187,11 +187,28 @@ function logQuestion(entry) {
  * warning rather than a surprise.
  *
  * Budget comes from AI_TOKEN_BUDGET, defaulting to the million that was bought.
+ *
+ * This is a FLOOR, not the bill. It counts what this process logged, which leaves
+ * out three things the gateway still charges for:
+ *
+ *   - retries and failed calls — the model runs, the gateway counts it, and the
+ *     error that comes back carries no usage to record;
+ *   - anything run from another machine or another copy of the bot, since each
+ *     keeps its own log;
+ *   - check-key.js, which lists models and sends a test message every run.
+ *
+ * Measured 2026-08-27: this said ~15k while the gateway's own dashboard said
+ * 139k for the same day. Treat the provider's figure as the real one.
  */
 function usageSummary() {
     const budget = Number(process.env.AI_TOKEN_BUDGET) || 1000000;
 
     let questions = 0, answered = 0, input = 0, output = 0, up = 0, down = 0;
+
+    // The expensive path, and the date the tally actually begins. Both exist
+    // because this summary is easy to over-trust: see the note on `priced`.
+    let fullFaq = 0;
+    let since = null;
 
     // Counted separately from `questions`: entries logged before tokens were
     // recorded carry no cost, and a gateway hiccup can log one that cost nothing.
@@ -207,7 +224,11 @@ function usageSummary() {
             if (e.answered) answered += 1;
 
             const cost = ((e.tokens && e.tokens.in) || 0) + ((e.tokens && e.tokens.out) || 0);
-            if (cost > 0) priced += 1;
+            if (cost > 0) {
+                priced += 1;
+                if (!since) since = e.at;
+                if (e.fullFaq) fullFaq += 1;
+            }
             input += (e.tokens && e.tokens.in) || 0;
             output += (e.tokens && e.tokens.out) || 0;
 
@@ -225,7 +246,7 @@ function usageSummary() {
     const perQuestion = priced > 0 ? Math.round(used / priced) : 0;
 
     return {
-        questions, answered, priced, up, down,
+        questions, answered, priced, up, down, fullFaq, since,
         input, output, used, budget, remaining,
         perQuestion,
         questionsLeft: perQuestion > 0 ? Math.floor(remaining / perQuestion) : null,
@@ -364,7 +385,7 @@ async function handleQuestion({ question, discordId, username, source }) {
     const safe = redact(trimmed);
 
     try {
-        const { reply, answered, usage } = await ask(safe);
+        const { reply, answered, usage, selection } = await ask(safe);
         // Cost is recorded against the question that incurred it. Keeping it here
         // rather than in a separate counter means the tally cannot drift from the
         // log, and an expensive question can always be traced back to its text.
@@ -374,6 +395,11 @@ async function handleQuestion({ question, discordId, username, source }) {
                 in: usage.input_tokens || 0,
                 out: usage.output_tokens || 0,
             },
+            // Whether the selector gave up and sent the whole document. These are
+            // the expensive answers — roughly seven times the cost of a narrowed
+            // one — so knowing how many there were is knowing where the budget
+            // actually goes.
+            fullFaq: !!(selection && selection.full),
         });
         // The redacted question goes back out, never the raw one: whatever the
         // customer pasted has already been stripped, and the title must not put

@@ -1004,7 +1004,12 @@ Membership gets you everything that exists. Premium decides what exists next —
         const embed = new EmbedBuilder()
             .setColor(u.percentUsed >= 90 ? "#ED4245" : u.percentUsed >= 75 ? "#FAA61A" : "#FFFFFF")
             .setTitle("AI assistant usage")
-            .setDescription(`\`${meter}\`  **${pct}%** of the token budget`)
+            .setDescription(
+                `\`${meter}\`  **at least ${pct}%** of the token budget\n` +
+                `-# counted from answers logged here` +
+                (u.since ? ` since ${u.since.slice(0, 10)}` : "") +
+                ` \u2014 the real figure is on tonwave.dev`
+            )
             .addFields(
                 {
                     name: "Tokens",
@@ -1018,7 +1023,10 @@ Membership gets you everything that exists. Premium decides what exists next —
                     name: "Questions",
                     value:
                         `**${u.questions}** asked, ${u.answered} answered\n` +
-                        `~**${u.perQuestion.toLocaleString("en-US")}** tokens each`,
+                        `~**${u.perQuestion.toLocaleString("en-US")}** tokens each` +
+                        (u.fullFaq
+                            ? `\n**${u.fullFaq}** sent the whole FAQ`
+                            : ""),
                     inline: true,
                 },
                 {
@@ -1032,7 +1040,9 @@ Membership gets you everything that exists. Premium decides what exists next —
         if (u.questionsLeft !== null) {
             embed.addFields({
                 name: "At this rate",
-                value: `roughly **${u.questionsLeft.toLocaleString("en-US")}** more questions`,
+                value:
+                    `at most **${u.questionsLeft.toLocaleString("en-US")}** more questions\n` +
+                    `-# an upper bound: retries and failed calls are billed but never logged`,
             });
         }
 
