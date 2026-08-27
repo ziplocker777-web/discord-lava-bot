@@ -25,7 +25,7 @@ const { startWebhookServer, revokeRole, WATERMARKED_PRODUCT_IDS } = require("./w
 const { getAllPurchases, getPurchaseForProduct, recordPurchase } = require("./purchaseStore.js");
 const { isRefunded } = require("./refundedEmails.js");
 const {
-    registerAiSupport, handleQuestion, sendWithRetry, recordFeedback,
+    registerAiSupport, handleQuestion, sendWithRetry, recordFeedback, usageSummary,
 } = require("./aiSupport.js");
 const {
     buildAnswerEmbed, buildAnswerComponents, parseFeedbackId,
@@ -988,6 +988,55 @@ Membership gets you everything that exists. Premium decides what exists next —
             content: "✅ Panel created.",
             ephemeral: true,
         });
+    }
+
+    // ================= /aiusage =================
+    // The gateway shows its balance only on its own site, so this is the only
+    // place the spend is visible from Discord. Admin-only and ephemeral: it is
+    // an operational number, not something a customer needs to see.
+    if (interaction.isChatInputCommand() && interaction.commandName === "aiusage") {
+        const u = usageSummary();
+
+        const pct = u.percentUsed.toFixed(1);
+        const bars = Math.min(20, Math.round(u.percentUsed / 5));
+        const meter = "\u2588".repeat(bars) + "\u2591".repeat(20 - bars);
+
+        const embed = new EmbedBuilder()
+            .setColor(u.percentUsed >= 90 ? "#ED4245" : u.percentUsed >= 75 ? "#FAA61A" : "#FFFFFF")
+            .setTitle("AI assistant usage")
+            .setDescription(`\`${meter}\`  **${pct}%** of the token budget`)
+            .addFields(
+                {
+                    name: "Tokens",
+                    value:
+                        `used **${u.used.toLocaleString("en-US")}** of ` +
+                        `${u.budget.toLocaleString("en-US")}\n` +
+                        `left **${u.remaining.toLocaleString("en-US")}**`,
+                    inline: true,
+                },
+                {
+                    name: "Questions",
+                    value:
+                        `**${u.questions}** asked, ${u.answered} answered\n` +
+                        `~**${u.perQuestion.toLocaleString("en-US")}** tokens each`,
+                    inline: true,
+                },
+                {
+                    name: "Feedback",
+                    value: `\u{1F44D} ${u.up}   \u{1F44E} ${u.down}`,
+                    inline: true,
+                },
+            )
+            .setTimestamp();
+
+        if (u.questionsLeft !== null) {
+            embed.addFields({
+                name: "At this rate",
+                value: `roughly **${u.questionsLeft.toLocaleString("en-US")}** more questions`,
+            });
+        }
+
+        return interaction.reply({ embeds: [embed], ephemeral: true });
     }
 
     // ================= AI ANSWER FEEDBACK =================

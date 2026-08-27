@@ -72,6 +72,11 @@ const commands = [
     )
     .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
     .toJSON(),
+  new SlashCommandBuilder()
+    .setName("aiusage")
+    .setDescription("How many tokens the AI assistant has spent, and how many are left")
+    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
+    .toJSON(),
 ];
 
 const rest = new REST({ version: "10" }).setToken(process.env.DISCORD_TOKEN);

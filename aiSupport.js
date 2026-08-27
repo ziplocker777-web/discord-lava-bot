@@ -178,6 +178,63 @@ function logQuestion(entry) {
 }
 
 /**
+ * Adds up what the assistant has spent, straight from the log.
+ *
+ * The gateway sells a fixed pool of tokens and shows the balance only on its own
+ * site, so without this there is no way to know from here how close the bot is to
+ * going quiet. Running out is not catastrophic — questions start returning the
+ * "something went wrong" reply — but it is the kind of thing worth a week's
+ * warning rather than a surprise.
+ *
+ * Budget comes from AI_TOKEN_BUDGET, defaulting to the million that was bought.
+ */
+function usageSummary() {
+    const budget = Number(process.env.AI_TOKEN_BUDGET) || 1000000;
+
+    let questions = 0, answered = 0, input = 0, output = 0, up = 0, down = 0;
+
+    // Counted separately from `questions`: entries logged before tokens were
+    // recorded carry no cost, and a gateway hiccup can log one that cost nothing.
+    // Averaging over those makes the projection look far rosier than it is.
+    let priced = 0;
+
+    try {
+        const entries = fs.existsSync(LOG_PATH)
+            ? JSON.parse(fs.readFileSync(LOG_PATH, "utf-8"))
+            : [];
+        for (const e of entries) {
+            questions += 1;
+            if (e.answered) answered += 1;
+
+            const cost = ((e.tokens && e.tokens.in) || 0) + ((e.tokens && e.tokens.out) || 0);
+            if (cost > 0) priced += 1;
+            input += (e.tokens && e.tokens.in) || 0;
+            output += (e.tokens && e.tokens.out) || 0;
+
+            for (const f of e.feedback || []) {
+                if (f.vote === "up") up += 1;
+                else if (f.vote === "down") down += 1;
+            }
+        }
+    } catch (err) {
+        console.error("[ai] could not read the log for a usage summary:", err.message);
+    }
+
+    const used = input + output;
+    const remaining = Math.max(0, budget - used);
+    const perQuestion = priced > 0 ? Math.round(used / priced) : 0;
+
+    return {
+        questions, answered, priced, up, down,
+        input, output, used, budget, remaining,
+        perQuestion,
+        questionsLeft: perQuestion > 0 ? Math.floor(remaining / perQuestion) : null,
+        percentUsed: budget > 0 ? (used / budget) * 100 : 0,
+    };
+}
+
+
+/**
  * Writes a thumbs up or down against a logged question.
  *
  * The value of this is not the score, it is the pairing: a question, the answer
@@ -256,6 +313,14 @@ async function ask(question) {
         .join("")
         .trim();
 
+    // Seen from the tonwave gateway: a 200 with no content blocks and zero usage.
+    // Left alone it becomes an embed with an empty description, which Discord
+    // rejects outright — so the customer gets silence rather than a reply. Better
+    // to fail here and let the caller send its "something went wrong" answer.
+    if (!text) {
+        throw new Error("the gateway returned an empty response");
+    }
+
     const { reply, answered } = parseReply(text);
 
     // The FAQ column is the one to watch. If "full" shows up on questions that are
@@ -299,8 +364,17 @@ async function handleQuestion({ question, discordId, username, source }) {
     const safe = redact(trimmed);
 
     try {
-        const { reply, answered } = await ask(safe);
-        const logId = logQuestion({ discordId, username, source, question: safe, answered });
+        const { reply, answered, usage } = await ask(safe);
+        // Cost is recorded against the question that incurred it. Keeping it here
+        // rather than in a separate counter means the tally cannot drift from the
+        // log, and an expensive question can always be traced back to its text.
+        const logId = logQuestion({
+            discordId, username, source, question: safe, answered,
+            tokens: {
+                in: usage.input_tokens || 0,
+                out: usage.output_tokens || 0,
+            },
+        });
         // The redacted question goes back out, never the raw one: whatever the
         // customer pasted has already been stripped, and the title must not put
         // a licence key back on screen.
@@ -458,6 +532,6 @@ function registerAiSupport(discordClient, { Events }) {
 
 module.exports = {
     registerAiSupport, initAi, handleQuestion, parseReply, redact, loadFaq,
-    buildSystemPrompt, selectFaq, sendWithRetry, recordFeedback,
+    buildSystemPrompt, selectFaq, sendWithRetry, recordFeedback, usageSummary,
     MODEL, CACHING,
 };
