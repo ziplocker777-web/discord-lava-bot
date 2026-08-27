@@ -222,19 +222,28 @@ to collect anything.
 
 ### What happens right after I pay?
 
-Three things, usually within seconds of the payment clearing:
+It depends on what you bought.
 
-- Your **role** appears, which unlocks the channels that come with it.
-- A **DM** arrives with your download link and your licence key.
-- If you subscribed, the rest of the files are already waiting in your downloads
-  channel.
+**A subscription — any tier.** Your **role** appears within seconds and unlocks
+your downloads channel, where the files in your tier are already waiting. You
+also get a **DM** with the configurator and your licence key.
 
-The licence key is what unlocks the configurator app — you paste it in the first
+**Muzzle Core FX, or a Graphics Pack.** A **DM** with your download link and your
+licence key. The key unlocks the configurator app — you paste it in the first
 time you open it.
 
-If the DM never arrives, it is almost always because DMs from server members are
-switched off on your account. Run **`/getrole`** and the bot will hand you the
-same link and key right there in the channel, where only you can see them.
+**Anything else bought once.** No DM and no channel. The file is on your lava.top
+account, as a download link or an attachment:
+
+https://app.lava.top/my-purchases
+
+**Channels are a subscription thing.** A one-off purchase does not open any
+channel, whatever it was — that is not a fault, it is how the two differ.
+
+If a DM you were expecting never arrives, it is almost always because DMs from
+server members are switched off on your account. Run **`/getrole`** and the bot
+hands you the same link and key right there in the channel, where only you can
+see them.
 
 ### Am I buying a subscription or a one-off?
 
@@ -338,8 +347,18 @@ If it did fail completely, just subscribe again.
 
 ### Where are my downloads?
 
-In the downloads channel for your tier — Basic has its own, Membership and Premium
-share one. Your role unlocks the right one automatically the moment it's granted.
+**On a subscription** — in the downloads channel for your tier. Basic has its own;
+Membership and Premium share one. Your role unlocks the right one automatically
+the moment it is granted.
+
+**On a one-off purchase** — there is no channel. Muzzle Core FX and the Graphics
+Packs arrive by DM with a link and a licence key; everything else sits on your
+lava.top account:
+
+https://app.lava.top/my-purchases
+
+That page lists everything you have ever bought, so it is also the place to look
+when a link has expired or a DM went missing.
 
 ---
 
@@ -347,8 +366,14 @@ share one. Your role unlocks the right one automatically the moment it's granted
 
 ### I paid and nothing happened
 
-Your role and your download arrive by **direct message** within seconds of the
-payment clearing. If nothing came, in this order:
+First, check what you were expecting. A one-off purchase that is not Muzzle Core
+FX or a Graphics Pack sends **no DM and opens no channel** — the file is on your
+lava.top account and nothing else was ever going to arrive:
+
+https://app.lava.top/my-purchases
+
+If you subscribed, or bought Muzzle Core FX or a Graphics Pack, then something
+should have arrived. In this order:
 
 1. **Check your DMs are open.** In Discord: **Settings → Privacy & Safety →**
    allow direct messages from server members. The bot cannot message you

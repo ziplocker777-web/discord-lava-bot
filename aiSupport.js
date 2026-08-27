@@ -393,6 +393,16 @@ async function handleQuestion({ question, discordId, username, source }) {
         }
         if (err instanceof Anthropic.AuthenticationError) {
             console.error("[ai] ANTHROPIC_API_KEY is missing or invalid");
+        } else if (err instanceof Anthropic.APIError && err.status >= 500) {
+            // The gateway is down, not the bot. Worth saying plainly: "something
+            // went wrong on my end" sends people to a ticket believing their
+            // order broke, when the answer is simply to ask again later.
+            console.error(`[ai] gateway is down (${err.status}) — answering is off until it returns`);
+            logQuestion({ discordId, username, source, question: safe, answered: false, error: `gateway ${err.status}` });
+            return {
+                kind: "error",
+                text: "The assistant is offline for a moment — that's on the provider, not your order. Try again shortly, or open a ticket if it's urgent.",
+            };
         } else if (err instanceof Anthropic.APIError) {
             console.error(`[ai] API error ${err.status}:`, err.message);
         } else {

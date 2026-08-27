@@ -48,11 +48,18 @@ Individual products can also be bought once and kept. Panels marked **Subscribe*
 2. Choose **Card** or **PayPal**
 3. Enter the email the order should be tied to
 4. Pay on the **lava.top** page that opens
-5. Come back here — your role and files arrive on their own
 
-Within seconds of payment you get your **role**, and a **DM** with your download link and licence key. The key unlocks the configurator app.
+What arrives depends on what you bought:
 
-**Nothing arrived?** Almost always DMs from server members are switched off on your account. Run **`/getrole`** with your checkout email and the bot hands you the link and key right in the channel, where only you can see them.
+**A subscription — any tier.** Your **role** appears within seconds and unlocks your downloads channel, where your tier's files are waiting. You also get a **DM** with the configurator and your licence key.
+
+**Muzzle Core FX, or a Graphics Pack.** A **DM** with your download link and licence key.
+
+**Anything else bought once.** No DM and no channel — the file is on your lava.top account: <https://app.lava.top/my-purchases>
+
+**Channels come with a subscription only.** A one-off purchase does not open one, whatever it was. That is not a fault, it is how the two differ.
+
+**Expecting a DM that never came?** Almost always DMs from server members are switched off on your account. Run **`/getrole`** with your checkout email and the bot hands you the link and key right in the channel, where only you can see them.
 
 **Installation steps are in the README inside every download.** That is the authoritative version for your specific file.
 
