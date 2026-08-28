@@ -1072,11 +1072,13 @@ Membership gets you everything that exists. Premium decides what exists next —
                 vote: parsed.vote,
             });
 
-            const reply = !result.ok
-                ? "Couldn't record that — the answer is too old to vote on."
-                : parsed.vote === "up"
-                    ? "Noted, thanks."
-                    : "Noted — this one will get looked at.";
+            const reply = result.reason === "not yours"
+                ? "That one isn't yours to rate — the buttons are for whoever asked."
+                : !result.ok
+                    ? "Couldn't record that — the answer is too old to vote on."
+                    : parsed.vote === "up"
+                        ? "Noted, thanks."
+                        : "Noted — this one will get looked at.";
 
             return interaction.reply({ content: reply, ephemeral: true });
         }

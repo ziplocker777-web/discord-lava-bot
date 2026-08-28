@@ -102,6 +102,7 @@ const EN_STEMS = [
     ["setting up", "install installation"],
     ["configure", "install configurator settings"],
     ["how to install", "install installation openiv oiv"],
+    ["install", "install installation files"],
     ["order", "buy purchase"],
     ["purchase", "buy purchase"],
     ["checkout", "buy payment"],
@@ -298,20 +299,45 @@ function selectFaq(faq, question, options = {}) {
         return { text: faq, full: true, picked: 0, reason: "weak match" };
     }
 
-    // Words the customer did not literally use, but which the intent maps say they
-    // meant: "set up" -> install, "order" -> buy. A question naming two products
-    // and asking how to set them up is dominated by the product names on raw
-    // scoring, and the install answer never makes the cut. If an intent word
-    // titles an answer, that answer is in, whatever it scored.
+    // Words that say what the person is trying to DO, as opposed to what they are
+    // talking about. A question naming two products and asking how to install
+    // them is dominated by the product names on raw scoring, and the install
+    // answer never makes the cut -- so if an intent word titles an answer, that
+    // answer is in, whatever it scored.
+    //
+    // Collected from both directions. Observed 2026-08-28: "how do i install the
+    // muzzle flash" was answered NO ANSWER because only the mapped side was
+    // consulted -- "how to install" is in the table but "how do i install" is
+    // not, so nothing mapped, and the guarantee never fired for a question with
+    // the word "install" right there in it. Every value in the tables is an
+    // intent word by construction, so a literal one counts the same.
+    const lowered = (question || "").toLowerCase();
     const intent = new Set();
+
     for (const [stem, english] of [...RU_STEMS, ...EN_STEMS]) {
-        if (!(question || "").toLowerCase().includes(stem)) continue;
+        if (!lowered.includes(stem)) continue;
         for (const w of english.split(" ")) intent.add(w);
+    }
+
+    const intentVocabulary = new Set(
+        [...RU_STEMS, ...EN_STEMS].flatMap(([, english]) => english.split(" "))
+    );
+    for (const t of ts) {
+        if (intentVocabulary.has(t)) intent.add(t);
     }
     const guaranteed = [];
     for (const w of intent) {
-        const hit = ranked.find((r) => r.entry.headingHay.includes(w));
-        if (hit && !guaranteed.includes(hit)) guaranteed.push(hit);
+        // Ranked by how much the heading is ABOUT this word, not by the overall
+        // score. Sorting by score puts the loudest match first, and the loudest
+        // match is decided by the same common words the guarantee exists to
+        // outvote: "how do i install the muzzle flash" chose "I bought several
+        // mods - how do I install them together?" over "How do I install?".
+        // A short heading carrying the word is the one that answers it.
+        const hits = ranked
+            .filter((r) => r.entry.headingHay.includes(w))
+            .sort((a, b) => a.entry.headingHay.length - b.entry.headingHay.length)
+            .slice(0, 2);
+        for (const hit of hits) if (!guaranteed.includes(hit)) guaranteed.push(hit);
     }
 
     const picked = [];

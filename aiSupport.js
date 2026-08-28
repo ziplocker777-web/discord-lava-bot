@@ -273,6 +273,13 @@ function recordFeedback({ logId, userId, vote }) {
         const entry = entries.find((e) => e.id === logId);
         if (!entry) return { ok: false, reason: "not found" };
 
+        // Only the person who asked. The button means "this helped me", and a
+        // passer-by's opinion of someone else's answer is a different signal
+        // that would sit in the same column and be read as the first one.
+        if (entry.discordId && String(entry.discordId) !== String(userId)) {
+            return { ok: false, reason: "not yours" };
+        }
+
         entry.feedback = (entry.feedback || []).filter((f) => f.by !== userId);
         entry.feedback.push({ by: userId, vote, at: new Date().toISOString() });
 
