@@ -600,8 +600,29 @@ download link.
 
 ### Can I use my key on two computers, a second PC or a laptop?
 
-No. One key, **one machine**. This is not a multi-PC licence — it will not work
-on a second computer or laptop, whether or not the first one is running.
+Your key is for **you**, not for a machine. Moving to a new PC, or reinstalling
+Windows, is fine — enter the same key again.
+
+What it is not is a licence to share. One key belongs to one buyer, and a key
+that turns up in someone else's hands is a leak, not a second seat.
+
+### What happens if a key gets shared?
+
+Every key can be **revoked**, and the app checks its key against the server each
+time it starts. A revoked key stops unlocking the app from that point on, on
+every machine it was used on.
+
+Every download also carries markers tying it back to the order it was issued to,
+so a file that turns up circulating leads back to an account.
+
+### This purchase was refunded — why can't I get my role?
+
+Because it was refunded. `/getrole` checks against the refund list before it
+grants anything, and stops there.
+
+If that looks wrong to you — a refund you did not ask for, or a charge you were
+told would be reversed and was not — open a ticket with your checkout email and
+it gets looked at by a person.
 
 ### My role disappeared
 
@@ -645,6 +666,15 @@ Story Mode, and the two run together fine.
 No. Both are tied to your order and identify it. Every copy that goes out carries
 markers that lead back to the account it was issued to, and files that turn up
 circulating are traced.
+
+### I bought before there were licence keys — what do I do?
+
+Use the **redownload panel**, or run **`/getrole`** with your checkout email.
+Either one reissues your download as the current build **with a licence key**,
+which is what the app now asks for on first run.
+
+You do not buy anything again. The purchase on file is what the reissue is
+based on.
 
 ### How do I get the latest version?
 
