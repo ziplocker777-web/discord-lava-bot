@@ -160,6 +160,48 @@ const API_V2 = axios.create({
     timeout: 15000,
 });
 
+/**
+ * Every product and every offer, with prices, in one call.
+ *
+ * fetchOfferPrices above answers "what does this one product cost" for the
+ * subscription tiers. The assistant needs the whole list, because a customer
+ * asking "how much is Blood FX" is asking about a product the bot otherwise has
+ * no prices for at all.
+ *
+ * Returns [{ title, offers: [{ name, usd, rub, eur }] }], or null if the call
+ * fails — the caller is expected to carry on without prices rather than break.
+ */
+async function fetchAllPrices() {
+    try {
+        const { data } = await API_V2.get("/products", { params: { page: 0, size: 100 } });
+        const items = data.items || data || [];
+        const out = [];
+
+        for (const item of items) {
+            const product = item.data || item;
+            if (!product.title) continue;
+
+            const offers = [];
+            for (const offer of product.offers || []) {
+                const price = {};
+                for (const p of offer.prices || []) {
+                    if (p.currency && typeof p.amount === "number") {
+                        price[String(p.currency).toLowerCase()] = p.amount;
+                    }
+                }
+                if (price.usd != null) offers.push({ name: offer.name || product.title, ...price });
+            }
+
+            if (offers.length > 0) out.push({ title: product.title, offers });
+        }
+
+        return out.length > 0 ? out : null;
+    } catch (err) {
+        console.warn("[prices] could not fetch the product list:", err.response?.status || err.message);
+        return null;
+    }
+}
+
 async function fetchOfferPrices(productId) {
     const { data } = await API_V2.get("/products");
     const items = data.items || data || [];
@@ -184,5 +226,6 @@ async function fetchOfferPrices(productId) {
     return null;
 }
 
-module.exports = { createInvoice, cancelSubscription, findCompletedSaleByEmail, fetchOfferPrices };
+module.exports = {
+    fetchAllPrices, createInvoice, cancelSubscription, findCompletedSaleByEmail, fetchOfferPrices };
 

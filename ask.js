@@ -16,7 +16,7 @@ require("dotenv").config({ quiet: true });
  */
 
 const readline = require("readline");
-const { initAi, handleQuestion } = require("./aiSupport.js");
+const { initAi, handleQuestion, pricesReady } = require("./aiSupport.js");
 
 // A spread of what actually gets asked: both languages, an order-specific
 // question that must be deflected to a ticket, and one thing the FAQ does not
@@ -52,6 +52,9 @@ async function askOne(question, i) {
 
 (async () => {
     if (!initAi()) process.exit(1);
+
+    // The bot can answer before prices land; a one-shot CLI should not.
+    await pricesReady();
 
     const args = process.argv.slice(2);
 

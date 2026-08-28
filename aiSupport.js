@@ -5,6 +5,7 @@ const path = require("path");
 const Anthropic = require("@anthropic-ai/sdk").default;
 const { selectFaq } = require("./faqSelect.js");
 const { buildAnswerEmbed, buildAnswerComponents } = require("./aiEmbed.js");
+const { fetchAllPrices } = require("./lavaClient.js");
 
 // The answers themselves live in faq.md, not here. That file is also what gets
 // posted in the FAQ channel and pasted into Ticket Tool's ticket message, so
@@ -129,6 +130,16 @@ The marker is stripped before the customer sees it. Never mention it, never expl
 ## When you don't know
 
 Say plainly that you don't have the answer and that a ticket is the way to get it. Do not apologise at length, do not speculate, do not offer a "you could try" that isn't in the FAQ.
+
+---
+
+# Prices
+
+${priceBlock ? `These are live from the shop, and are the only prices to quote.
+Currencies other than USD are converted at checkout.
+
+${priceBlock}` : `You do not have prices right now. If someone asks what something
+costs, say the panel in the shop channel shows it, and do not guess a number.`}
 
 ---
 
@@ -293,6 +304,51 @@ function recordFeedback({ logId, userId, vote }) {
 
 let client = null;
 let faqText = null;
+
+/**
+ * Prices, read from lava.top rather than written into faq.md.
+ *
+ * A price in the FAQ is a price that goes stale the first time one changes, and
+ * nobody remembers to edit it — the shop's own list is the only copy that stays
+ * true. Refreshed on a timer because the app can run for weeks.
+ *
+ * Empty when the fetch fails. The assistant then simply has no prices to quote,
+ * which is the right failure: the alternative is quoting a number nobody checked.
+ */
+let priceBlock = "";
+let firstPriceFetch = null;
+const PRICE_REFRESH_MS = 6 * 60 * 60 * 1000;
+
+/** Resolves once prices have been tried at least once. For scripts that ask
+ *  immediately and would otherwise quote the no-prices fallback. */
+function pricesReady() {
+    return firstPriceFetch || Promise.resolve();
+}
+
+async function refreshPrices() {
+    const products = await fetchAllPrices();
+    if (!products) return;
+
+    const lines = [];
+    for (const product of products) {
+        // One offer named after its own product is just the product; several
+        // means tiers or variants, and those want naming.
+        const single = product.offers.length === 1;
+        for (const offer of product.offers) {
+            // "Subscription ziplocker" is the raw shop name for the tiers and is
+            // never shown to a buyer; the tier is what they call it.
+            const label = single
+                ? product.title
+                : product.title.toLowerCase().includes("subscription")
+                    ? `${offer.name} subscription`
+                    : `${product.title} — ${offer.name}`;
+            lines.push(`- ${label}: $${offer.usd}`);
+        }
+    }
+
+    priceBlock = lines.join("\n");
+    console.log(`[prices] ${lines.length} price(s) loaded for the assistant`);
+}
 
 /**
  * Splits the marker off the model's reply. Separated out so it can be tested
@@ -513,6 +569,11 @@ function initAi() {
     client = new Anthropic({ timeout: REQUEST_TIMEOUT_MS, maxRetries: 1 });
     faqText = loadFaq();
 
+    // Not awaited: a slow shop API must not hold up the bot coming online, and
+    // until the first fetch lands the assistant just has no prices to quote.
+    firstPriceFetch = refreshPrices();
+    setInterval(refreshPrices, PRICE_REFRESH_MS).unref?.();
+
     console.log(
         `[ai] model ${MODEL} via ${endpoint}, caching ${CACHING ? "on" : "off"}, ` +
         `FAQ ${faqText.length} chars`
@@ -575,6 +636,6 @@ function registerAiSupport(discordClient, { Events }) {
 
 module.exports = {
     registerAiSupport, initAi, handleQuestion, parseReply, redact, loadFaq,
-    buildSystemPrompt, selectFaq, sendWithRetry, recordFeedback, usageSummary,
+    buildSystemPrompt, selectFaq, sendWithRetry, recordFeedback, usageSummary, pricesReady,
     MODEL, CACHING,
 };

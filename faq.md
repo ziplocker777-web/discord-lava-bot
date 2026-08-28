@@ -477,17 +477,17 @@ with your checkout email and everything will be linked up.
 
 ### What are the three tiers?
 
-**Basic — $5.99/month**
+**Basic**
 Everything outside the Muzzle Core FX line:
 Complete Audio Overhaul · Blood FX · Graphics V2 · Summer Visuals · every future
 release outside that line, added automatically as it ships.
 
-**Membership — $9.99/month**
+**Membership**
 Everything in Basic, plus:
 Muzzle Core FX (full version) · Graphics Pack V1 · Graphics Pack V2 · every future
 release · a vote in every poll on what gets built next · sneak peeks.
 
-**Premium — $14.99/month**
+**Premium**
 Everything in Membership, plus:
 beta builds · early access to finished releases · you can suggest your own ideas,
 not just vote on the options · your idea goes up as a poll · priority tickets.
