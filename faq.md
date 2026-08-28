@@ -58,7 +58,145 @@ Yes. These are mods for the game, not standalone programs.
 
 ---
 
-# 2. Before you buy
+# 2. What each mod is
+
+### Which one do I actually want?
+
+- **Weapon effects** you can see — muzzle flash, smoke, sparks, impacts: **Muzzle Core FX**.
+- **Weapon sounds**: **Complete Audio Overhaul**, or the free **Realism Guns Sound Pack**.
+- **Blood and gore**: **Ziplocker's Blood FX**.
+- **The way the whole game looks**: a **Graphics Pack**, or **Summer Visuals** for a summer look.
+- **Just the bullet tracers**, free: **Tracer Tool**.
+
+A subscription covers the paid ones. Buying separately makes sense when you only
+want one thing.
+
+### Muzzle Core FX
+
+A complete overhaul of the weapon particle effects: muzzle flashes, gun smoke,
+impact effects, shell casings and tracers, built on GTA V's own particle system.
+It does not touch weapon stats and does not replace `weapons.meta`.
+
+What makes it different from a fixed mod is the **configurator**: every effect is
+adjustable in its own app, per weapon, with no CodeWalker and no XML editing. See
+the configurator section further down.
+
+Works on **Story Mode and FiveM**. Paid, and included in Membership and Premium.
+
+### Flash Collection
+
+An **add-on to Muzzle Core FX**, not a mod of its own. Muzzle Core FX ships with
+flash variants I—III; Flash Collection adds IV—VII. The variants are sold
+individually, so owning only one or two is normal.
+
+They drop into the configurator's `Assets\Presets\` folder. Without Muzzle Core
+FX there is nothing for them to plug into.
+
+### Ziplocker's Blood FX
+
+A rebuild of the game's blood and gore: 18 new blood pool textures and 19 new
+splatter textures, all in high resolution.
+
+- Blood pools, splatters and soak textures redone so they react to light properly.
+- The default body-hit particles replaced with custom effects, giving larger and
+  more dramatic sprays.
+- Wound decals and soak patterns that vary by the weapon and ammunition used.
+- A wide library of variations, so repeated hits do not look stamped out.
+
+Works on **Story Mode and FiveM**. Paid, and included in every subscription tier.
+
+### Complete Audio Overhaul
+
+A full replacement for GTA V's weapon and environmental audio, in **three sound
+variants** included with one purchase:
+
+- **Variant I** — balanced, clean and realistic at comfortable volume.
+- **Variant II** — louder and punchier.
+- **Variant III** — the loudest, for maximum impact.
+
+Switch between them whenever you like. Beyond the firing sounds it also redoes
+**distant gunshots**, **gunshot echo**, **shell casings** and **bullet impacts**.
+
+Works on **Story Mode and FiveM**. Paid, and included in every subscription tier.
+
+### Realism Guns Sound Pack
+
+A free weapon sound pack. No purchase, no key — it is posted in the server.
+
+### Ziplocker Graphics Pack V1
+
+The original all-in-one pack: QuantV visuals, the blood overhaul, muzzle flashes
+and bullet impacts, a gun sound overhaul, and replaced road and vegetation
+textures.
+
+**FiveM only.** Paid, and included in Membership and Premium.
+
+### Ziplocker's Graphics Pack V2
+
+The all-in-one, rebuilt on **CoreFX** instead of QuantV: improved lighting,
+reflections, weather and colour, plus blood and ragdoll improvements and Muzzle
+Core FX effects.
+
+Ships in **two editions** — **Quality**, with volumetric clouds, and
+**Performance**, without them for the FPS, keeping the same look otherwise.
+
+**FiveM only.** Paid, and included in Membership and Premium.
+
+### Ziplocker's Graphics V2
+
+The **visuals only** half of Graphics Pack V2: the same CoreFX configuration,
+without the combat mods. For people who want the game to look better and nothing
+else.
+
+Same **Quality** and **Performance** editions. **FiveM only.** Paid, and included
+in every subscription tier.
+
+**Not the same product as Graphics Pack V2** — the names differ by one word and
+the packs differ by everything that is not visual.
+
+### Ziplocker's Graphics Pack V3
+
+The current **free** graphics pack. Posted in the server with separate downloads
+for improved textures and for roads.
+
+### Ziplocker Summer Visuals
+
+A summer look for the game: a tuned QuantV setup with a custom cinematic ReShade
+preset. Bright, vibrant daytime while keeping nighttime lighting realistic.
+
+Built to be light on performance, and adjustable to taste. **Hotkeys** switch
+bloom, lens effects, tint, overlay, borders and night mode without opening the
+ReShade menu.
+
+Works on **GTA V and FiveM**. Paid, and included in every subscription tier.
+
+### Tracer Tool
+
+A **free** editor for the bullet tracer — the glowing streak that travels through
+the air after a shot. No key, no activation.
+
+Colour (yellow is vanilla, plus blue, red and white), how brightly it glows, size
+and speed as ranges so shots vary, and an optional smoke trail. Builds for both
+FiveM and Story Mode from one set of settings, and the base files ship with the
+tool, so there is nothing to extract from your game.
+
+**If you own Muzzle Core FX you do not need it** — the same tracer controls are
+already in the configurator, and the two cannot be installed together.
+
+### Tracer FX
+
+The tracer effects as a ready file rather than an editor. Drop the ptfx files
+into your `mods` folder — the exact path is in the FiveM section below.
+
+### Immersive Combat 1.9
+
+A **free** combat overhaul, posted with a compatibility patch so it runs
+alongside Muzzle Core FX. **It needs Muzzle Core FX installed** — on its own the
+compatibility build has nothing to attach to.
+
+---
+
+# 3. Before you buy
 
 ### Which games are supported?
 
@@ -203,7 +341,7 @@ See section 4.
 
 ---
 
-# 3. Buying
+# 4. Buying
 
 ### How do I buy?
 
@@ -280,7 +418,7 @@ with your checkout email and everything will be linked up.
 
 ---
 
-# 4. Subscriptions
+# 5. Subscriptions
 
 ### What are the three tiers?
 
@@ -362,7 +500,7 @@ when a link has expired or a DM went missing.
 
 ---
 
-# 5. I've paid — where's my stuff?
+# 6. I've paid — where's my stuff?
 
 ### I paid and nothing happened
 
@@ -475,7 +613,7 @@ made in 2.1 loads in 2.2 and applies exactly as it did.
 
 ---
 
-# 6. Installing on FiveM
+# 7. Installing on FiveM
 
 ### Where do the files go?
 
@@ -519,7 +657,7 @@ Almost always one of these:
 
 ---
 
-# 7. Installing on GTA V Story Mode
+# 8. Installing on GTA V Story Mode
 
 ### How do I install?
 
@@ -553,7 +691,7 @@ manually.
 
 ---
 
-# 8. The configurator app
+# 9. The configurator app
 
 ### What does it actually do?
 
@@ -792,7 +930,7 @@ a ticket if you bought it by mistake.
 
 ---
 
-# 9. Tracer Tool
+# 10. Tracer Tool
 
 ### What is it?
 
@@ -814,11 +952,13 @@ No. It's free — it runs as soon as you extract it.
 
 ### Does it conflict with Muzzle Core FX?
 
-They both write the same game files, so **install whichever you build last** and
-be aware the newer one replaces the older.
+**If you own Muzzle Core FX you don't need the Tracer Tool.** The same tracer
+controls — colour, glow, size, speed, smoke trail — are already in the
+configurator.
 
-If you want both, build them in a way that doesn't overwrite — open a ticket and
-ask, it depends on what you're running.
+The two **cannot be installed together**: they write the same game files, so
+whichever went in last is the one that survives. Build your tracers in the
+configurator instead.
 
 ### Does it change tracers for every weapon?
 
@@ -831,7 +971,7 @@ Exactly the same causes and fixes as the main configurator — see section 8.
 
 ---
 
-# 10. Uninstalling
+# 11. Uninstalling
 
 ### FiveM
 
@@ -870,7 +1010,7 @@ This is the reason the backup step in section 7 is worth taking.
 
 ---
 
-# 11. It's not working
+# 12. It's not working
 
 ### Work through these first
 
@@ -944,7 +1084,7 @@ For Story Mode, you may need to reinstall to the updated `update.rpf`.
 
 ---
 
-# 12. Refunds and billing
+# 13. Refunds and billing
 
 ### Can I get a refund?
 
@@ -975,7 +1115,7 @@ charge back, say so and it'll be looked at.
 
 ---
 
-# 13. Support
+# 14. Support
 
 ### How do I get help?
 
