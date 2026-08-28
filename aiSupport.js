@@ -133,6 +133,16 @@ Say plainly that you don't have the answer and that a ticket is the way to get i
 
 ---
 
+# Channels
+
+${channelBlock() ? `When you send someone somewhere, use the mention exactly as
+written here — Discord turns it into a link they can click. Never write a channel
+name as plain text when it is in this list.
+
+${channelBlock()}` : "You have no channel ids. Refer to channels by name."}
+
+---
+
 # Prices
 
 ${priceBlock ? `These are live from the shop, and are the only prices to quote.
@@ -315,6 +325,27 @@ let faqText = null;
  * Empty when the fetch fails. The assistant then simply has no prices to quote,
  * which is the right failure: the alternative is quoting a number nobody checked.
  */
+/**
+ * Where to send people, built from the ids the bot already runs on.
+ *
+ * The FAQ says "open a ticket" twenty-three times in words. Rewriting each one
+ * as a link would put the same id in twenty-three places and leave it there when
+ * a channel moves; the bot already knows every one of these from .env, so the
+ * assistant is handed them once and told to use them.
+ */
+function channelBlock() {
+    const rows = [
+        ["Tickets, and anything about someone's own order", process.env.TICKET_CHANNEL_ID],
+        ["This assistant", process.env.AI_CHANNEL_ID],
+        ["Downloads for Basic", process.env.BASIC_CHANNEL_ID],
+        ["Downloads for Membership and Premium", process.env.SUBSCRIBER_CHANNEL_ID],
+        ["Update announcements", process.env.ANNOUNCEMENTS_CHANNEL_ID],
+    ].filter(([, id]) => id);
+
+    if (rows.length === 0) return "";
+    return rows.map(([what, id]) => `- ${what}: <#${id}>`).join("\n");
+}
+
 let priceBlock = "";
 let firstPriceFetch = null;
 const PRICE_REFRESH_MS = 6 * 60 * 60 * 1000;

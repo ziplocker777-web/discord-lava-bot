@@ -631,6 +631,16 @@ If you cancelled or a renewal failed, that's expected — see section 4.
 If you didn't, run `/getrole` with your checkout email. If that doesn't restore
 it, open a ticket.
 
+### What's inside a download?
+
+Very little, on purpose. Usually one file plus a README:
+
+- an **`.oiv`** for GTA V Story Mode, which OpenIV installs for you, and/or
+- an **`.rpf`** for FiveM, which you drop into your `mods` folder.
+
+The README in the archive has the steps for that exact product. Anything else you
+find in there @D@ a `Manual` folder, extra optional packages @D@ is explained in it too.
+
 ### Where are the installation instructions?
 
 Inside the download. Every product ships a **README** with the exact steps for
