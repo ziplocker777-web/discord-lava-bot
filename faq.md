@@ -121,7 +121,14 @@ Works on **Story Mode and FiveM**. Paid, and included in every subscription tier
 
 ### Realism Guns Sound Pack
 
-A free weapon sound pack. No purchase, no key — it is posted in the server.
+A free weapon sound pack. No purchase and no key — it is posted in the server.
+
+It comes as **two `.rpf` files**. Both go into:
+
+  `GTAV > x64 > audio > sfx`
+
+That is the same place every sound pack goes, so a new pack replaces the one
+before it rather than stacking with it.
 
 ### Ziplocker Graphics Pack V1
 
@@ -188,11 +195,59 @@ already in the configurator, and the two cannot be installed together.
 The tracer effects as a ready file rather than an editor. Drop the ptfx files
 into your `mods` folder — the exact path is in the FiveM section below.
 
-### Immersive Combat 1.9
+### Immersive Combat 1.9 + Muzzle Core FX
 
-A **free** combat overhaul, posted with a compatibility patch so it runs
-alongside Muzzle Core FX. **It needs Muzzle Core FX installed** — on its own the
-compatibility build has nothing to attach to.
+Immersive Combat is a combat overhaul **by Artupaky01**. It ships with muzzle
+effects of its own, and that is why muzzle effect mods stop doing anything once
+it is installed — its effects are already sitting where theirs would go.
+
+This build puts the **vanilla effects back on every weapon**, so Muzzle Core FX,
+or any other effect replacer, works again. The compatibility patch is
+ziplocker's; the mod itself is not.
+
+Weapon handling, damage, recoil, ammo and first-person positions are left
+untouched.
+
+**Free.**
+
+### What do I need for Immersive Combat?
+
+- **GTA V, singleplayer.** Not FiveM.
+- **OpenIV.**
+- **A muzzle effect mod, installed separately.** This package contains no effect
+  files of its own — it only clears the way for one. Muzzle Core FX is the
+  obvious choice, but any replacer works.
+
+It can be installed **straight over the original Immersive Combat**.
+
+### How do I install Immersive Combat?
+
+Double-click **`Immersive Combat 1.9 + Muzzle Core FX.oiv`** and choose **mods
+folder**. OpenIV has to be installed first.
+
+There are also **lower recoil** and **no recoil** packages included, unchanged
+from the original. They only touch recoil values and go on top of this.
+
+### What is the "Manual" folder for?
+
+For installing by hand instead of running the `.oiv`.
+
+The folder **mirrors the layout inside `update.rpf`**. Open
+`mods\update\update.rpf` in OpenIV with **Edit mode on**, then drag the files
+from `Manual\update\update.rpf\...` into the matching folders, replacing what
+is there.
+
+Most people should just run the `.oiv` — it does exactly this, without the
+chance of dropping a file in the wrong folder.
+
+### How do I uninstall Immersive Combat?
+
+- **If you used the .oiv** — double-click `Immersive Combat 1.9 Uninstaller.oiv`.
+- **If you installed by hand** — copy the files from `Manual Uninstaller` back
+  into `update.rpf`.
+
+Both restore the **vanilla** files, not the original Immersive Combat. If you
+want that back, install it again afterwards.
 
 ---
 
