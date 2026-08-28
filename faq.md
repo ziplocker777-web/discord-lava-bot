@@ -683,6 +683,14 @@ one issues a fresh link to the current build. Your key doesn't change.
 
 You don't have to buy anything again — updates are included.
 
+### How do I know when something is updated?
+
+Updates are posted in <#1454610509151076607>. Releases and new versions go there
+first, and they come round often.
+
+You do not need to watch for them to keep working — nothing breaks when a new
+build ships. Update when you want the changes.
+
 ### How do I install an update?
 
 Reinstall the mod from the same link in your DM. That link always hands you the
