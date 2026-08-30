@@ -139,13 +139,13 @@ async function customer(interaction, client) {
         return interaction.editReply("Nothing found for that.");
     }
 
-    lines.push(`**${emails.join(", ") || "no email on file"}**`);
+    lines.push(`# ${emails.join(", ") || "no email on file"}`);
     if (ids.length) lines.push(ids.map((id) => `<@${id}>`).join(", "));
 
     // ---- what they bought
     const purchases = emails.flatMap((e) => getAllPurchases(e) || []);
     if (purchases.length) {
-        lines.push("", "**Purchases**");
+        lines.push("", "### Purchases");
         for (const p of purchases) {
             const status = p.status ? ` — ${p.status}` : "";
             lines.push(`• ${p.productTitle || p.productId} — ${when(p.timestamp)}${status}`);
@@ -154,7 +154,7 @@ async function customer(interaction, client) {
 
     // ---- keys
     if (keys.length) {
-        lines.push("", "**Licence keys**");
+        lines.push("", "### Licence keys");
         for (const k of keys) {
             const ips = [...new Set((k.activations || []).map((a) => a.ip).filter(Boolean))];
             lines.push(
@@ -182,7 +182,7 @@ async function customer(interaction, client) {
         const bought = mine.filter((r) => String(r.status).toUpperCase() === "COMPLETED");
 
         if (bought.length) {
-            lines.push("", "**On lava.top**");
+            lines.push("", "### On lava.top");
             for (const r of bought) {
                 const title = r.product?.name || "?";
                 const flag = known.has(title) ? "" : "  ⚠️ **not in the bot's records**";
@@ -199,7 +199,7 @@ async function customer(interaction, client) {
 
         const subs = subscriptionsIn(mine);
         if (subs.length) {
-            lines.push("", "**Subscriptions**");
+            lines.push("", "### Subscriptions");
             for (const s of subs) {
                 const ends = s.terminatedAt
                     ? `ended ${when(s.terminatedAt)}`
@@ -226,7 +226,7 @@ async function customer(interaction, client) {
             const held = member.roles.cache
                 .filter((r) => ours.includes(r.id))
                 .map((r) => r.name);
-            lines.push("", `**Roles** — ${held.join(", ") || "none of ours"}`);
+            lines.push("", `### Roles\n${held.join(", ") || "none of ours"}`);
         } catch {
             lines.push("", `**Roles** — <@${id}> is not on the server`);
         }
@@ -312,7 +312,7 @@ async function lapsed(interaction) {
     ];
 
     if (ending.length) {
-        lines.push("", "**Cancelled, still paid for**");
+        lines.push("", "### Cancelled, still paid for");
         for (const s of ending) {
             lines.push(`• ${s.email} — ${s.offer} — until ${when(s.expiredAt)}`);
         }
@@ -741,7 +741,8 @@ async function stats(interaction) {
         refundedList.includes(String(r.buyer?.email || "").toLowerCase())).length;
 
     return interaction.editReply([
-        "**Taken, after commission**",
+        "# Sales",
+        "### Taken, after commission",
         `• 24 hours — ${day.length} sale(s), ${net(day)}`,
         `• 7 days — ${week.length} sale(s), ${net(week)}`,
         `• 30 days — ${month.length} sale(s), ${net(month)}`,
@@ -749,10 +750,10 @@ async function stats(interaction) {
         "",
         `_Gross was ${gross(paid)}; lava.top's cut and ${refundedHere} known refund(s) are already off._`,
         "",
-        `**Subscriptions running** — ${live.length}` +
+        `### Subscriptions\n${live.length} running` +
         (recurring ? ` — ${recurring.toFixed(2)} USD a month before commission` : ""),
         "",
-        top ? `**This week**\n${top}` : "_No sales this week._",
+        top ? `### This week\n${top}` : "_No sales this week._",
     ].join("\n").slice(0, 1990));
 }
 
@@ -819,7 +820,7 @@ async function pending(interaction) {
         return interaction.editReply("Everybody who bought more than a day ago has activated.");
     }
 
-    const lines = [`**${stale.length} buyer(s) never activated**`, ""];
+    const lines = [`# ${stale.length} never activated`, ""];
     for (const k of stale.slice(0, 20)) {
         const days = ((now - k.createdAt) / 86400e3).toFixed(0);
         lines.push(
@@ -909,7 +910,7 @@ async function health(interaction) {
     const up = process.uptime();
     const hrs = Math.floor(up / 3600);
     const mins = Math.floor((up % 3600) / 60);
-    lines.push(`**Bot** — up ${hrs}h ${mins}m`);
+    lines.push("# Health", "", `**Bot** — up ${hrs}h ${mins}m`);
 
     let lava_ok = false;
     try {
@@ -1011,7 +1012,8 @@ async function abandoned(interaction, client) {
     const total = lost.reduce((t, l) => t + l.amount, 0);
 
     const lines = [
-        `**${lost.length} unfinished checkout(s)** — ${total.toFixed(2)} USD that never arrived`,
+        `# ${lost.length} unfinished checkouts`,
+        `_${total.toFixed(2)} USD that never arrived._`,
         "",
     ];
 
@@ -1064,7 +1066,7 @@ async function top(interaction, client) {
     const ranked = [...by.entries()].sort((a, b) => b[1].spent - a[1].spent);
     const repeat = ranked.filter(([, v]) => v.n > 1).length;
 
-    const lines = [`**${by.size} buyers**, ${repeat} of them more than once`, ""];
+    const lines = [`# ${by.size} buyers`, `_${repeat} of them have come back._`, ""];
 
     ranked.slice(0, 12).forEach(([email, v], i) => {
         lines.push(`**${i + 1}.** ${v.spent.toFixed(2)} USD — ${v.n} purchase(s)`);
