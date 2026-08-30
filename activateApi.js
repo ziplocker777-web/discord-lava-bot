@@ -42,8 +42,31 @@ function registerActivateApi(app, discord) {
             return res.status(403).json({ error: "This license key has been revoked" });
         }
 
-        markActivated(purchase.token);
-        console.log(`[activate] key activated for discordId ${purchase.discordId} (${purchase.productTitle})`);
+        // Read back rather than reused: the snapshot above was taken before this
+        // activation was counted, so its number is one behind.
+        const state = markActivated(purchase.token, req.ip) || { count: 0, ips: [] };
+        console.log(
+            `[activate] key activated for discordId ${purchase.discordId} ` +
+            `(${purchase.productTitle}) — ip: ${req.ip}, ` +
+            `activation ${state.count}, distinct ips: ${state.ips.length}`
+        );
+
+        // Two addresses is a phone and a home connection, or an ISP handing out a
+        // new one. Three separate places is where it stops looking like one
+        // person's machines. Still only a nudge to go and look: the count on its
+        // own has already proved misleading once.
+        if (discord && state.ips.length >= 3) {
+            notifyOwner(discord,
+                `**A key is being used from several places**\n\n` +
+                `• ${purchase.email || "unknown"} — ${purchase.productTitle || "unknown"}\n` +
+                `• <@${purchase.discordId}>\n` +
+                `• ${state.count} activations from ${state.ips.length} addresses\n` +
+                `• ${state.ips.join(", ")}\n\n` +
+                `Worth a look, not proof: mobile and home count as two. ` +
+                `\`node revoke-key.js ${purchase.licenseKey}\` takes it back.`,
+                { key: `spread:${purchase.licenseKey}`, cooldownMs: 24 * 60 * 60 * 1000 })
+                .catch(() => {});
+        }
         res.json({ valid: true, productTitle: purchase.productTitle });
     });
 

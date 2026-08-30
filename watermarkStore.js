@@ -106,12 +106,35 @@ function getPurchaseByLicenseKey(key) {
 
 // Not a hard multi-use block — just visibility into how many times/where a key has
 // been activated, in case a pattern (same key, many activations) is worth following up on.
-function markActivated(token) {
+//
+// The count on its own says very little: the four-activation record in this store
+// turned out to be one person fighting an install for twenty-four minutes, while a
+// three-activation one was spread over five days. What separates a shared key from
+// a reinstall is WHERE, and how far apart -- so a short history is kept rather than
+// just a number.
+//
+// Eight entries, because this is a hint for a human to look at and not evidence.
+const ACTIVATION_HISTORY = 8;
+
+/** @returns {{count: number, ips: string[]}|null} the state AFTER this activation */
+function markActivated(token, ip) {
     const db = load();
-    if (!db[token]) return;
-    db[token].activationCount = (db[token].activationCount || 0) + 1;
-    db[token].lastActivatedAt = Date.now();
+    if (!db[token]) return null;
+
+    const record = db[token];
+    record.activationCount = (record.activationCount || 0) + 1;
+    record.lastActivatedAt = Date.now();
+
+    const history = Array.isArray(record.activations) ? record.activations : [];
+    history.push({ at: record.lastActivatedAt, ip: ip || null });
+    record.activations = history.slice(-ACTIVATION_HISTORY);
+
     save(db);
+
+    return {
+        count: record.activationCount,
+        ips: [...new Set(record.activations.map((a) => a.ip).filter(Boolean))],
+    };
 }
 
 // Kills a key that's already been activated on someone's machine. The app checks this
