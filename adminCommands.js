@@ -405,6 +405,107 @@ async function refund(interaction, client) {
         did.map((d) => `• ${d}`).join("\n"));
 }
 
+/* --------------------------------------------------------------- /deliver --- */
+
+/**
+ * Give somebody a product they did not buy.
+ *
+ * A tester, a giveaway, a purchase that happened somewhere this bot never saw.
+ * The same three steps a real sale takes -- record it, grant the role, send the
+ * link and the key -- so from that point on the person is indistinguishable from
+ * a buyer and every other command works on them.
+ *
+ * Recorded under a "manual-" contract, which is what stops the nightly sweep
+ * ever taking it back: there is no subscription upstream that could go dead.
+ */
+async function deliver(interaction, client) {
+    const userId = input(interaction, "user").replace(/[<@!>]/g, "").trim();
+    const email = input(interaction, "email").trim().toLowerCase();
+    const asked = input(interaction, "product").trim();
+
+    if (!/^\d{17,20}$/.test(userId)) {
+        return interaction.editReply(`\`${userId || "(empty)"}\` is not a Discord id.`);
+    }
+    if (!email.includes("@")) {
+        return interaction.editReply("Needs an email — it is the key the whole record is filed under.");
+    }
+
+    const wanted = asked.toLowerCase();
+    const title = Object.keys(KNOWN_PRODUCT_IDS).find((n) => n.toLowerCase() === wanted)
+        || Object.keys(KNOWN_PRODUCT_IDS).find((n) => n.toLowerCase().includes(wanted));
+
+    if (!title) {
+        return interaction.editReply(
+            `Don't know a product called **${asked}**. One of:\n` +
+            Object.keys(KNOWN_PRODUCT_IDS).map((n) => `• ${n}`).join("\n"));
+    }
+
+    const productId = KNOWN_PRODUCT_IDS[title];
+    const { WATERMARKED_PRODUCT_IDS } = require("./webhookServer");
+
+    // The download route serves one package. Anything else has no file behind
+    // its key, so sending a link would hand them the configurator by mistake.
+    if (!WATERMARKED_PRODUCT_IDS.has(productId)) {
+        return interaction.editReply(
+            `**${title}** is not delivered by this bot — there is no package behind it.\n` +
+            `Use \`/grantrole\` for the role and send the files the way you normally do.`);
+    }
+
+    recordPurchase(email, {
+        productId,
+        productTitle: title,
+        discordId: userId,
+        contractId: `manual-${Date.now()}`,
+    });
+
+    const done = [`recorded against \`${email}\``];
+
+    try {
+        const guild = await client.guilds.fetch(process.env.GUILD_ID);
+        const member = await guild.members.fetch({ user: userId, force: true });
+        for (const roleId of getRolesForProduct(productId)) {
+            if (member.roles.cache.has(roleId)) continue;
+            await member.roles.add(roleId);
+            done.push("role granted");
+        }
+    } catch (err) {
+        done.push(`⚠️ role not granted: ${err.message}`);
+    }
+
+    let delivery;
+    try {
+        delivery = deliverPurchase({ email, discordId: userId, productId, productTitle: title });
+    } catch (err) {
+        return interaction.editReply(`Recorded, but the download could not be built: ${err.message}`);
+    }
+
+    done.push(delivery.isNew ? "new key issued" : "they already had a key — reusing it");
+
+    const message = buildDeliveryMessage({
+        productId,
+        productTitle: title,
+        downloadUrl: delivery.downloadUrl,
+        licenseKey: delivery.licenseKey,
+        tierLabel: resolveTierWithLegacyFallback({ productId })?.label,
+        downloadsChannelId: tierDownloadsChannelId(null),
+        greeting: "Here is your access.",
+    });
+
+    try {
+        const user = await client.users.fetch(userId);
+        await user.send(message);
+        return interaction.editReply(
+            `✅ Sent <@${userId}> **${title}**\n` + done.map((d) => `• ${d}`).join("\n") +
+            `\n\nKey: \`${delivery.licenseKey}\``);
+    } catch (err) {
+        return interaction.editReply(
+            `Everything is set up, but the DM failed (${err.message}) — their DMs are shut.\n` +
+            done.map((d) => `• ${d}`).join("\n") +
+            `\n\nSend this on yourself:\nDownload: ${delivery.downloadUrl}\n` +
+            `License key: \`${delivery.licenseKey}\``);
+    }
+}
+
 /* ---------------------------------------------------------------- /resend --- */
 
 /**
@@ -805,6 +906,7 @@ const HANDLERS = {
     restorekey: (i) => setKeyState(i, false),
     lapsed,
     grantrole,
+    deliver,
     refund,
     resend,
     stats,

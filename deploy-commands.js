@@ -169,6 +169,30 @@ new SlashCommandBuilder()
     .toJSON(),
 
   new SlashCommandBuilder()
+    .setName("deliver")
+    .setDescription("Give somebody a product they did not buy — records it, grants the role, sends the key")
+    .addStringOption((option) =>
+      option.setName("user").setDescription("Discord id").setRequired(true)
+    )
+    .addStringOption((option) =>
+      option.setName("email").setDescription("Any email — the record is filed under it").setRequired(true)
+    )
+    .addStringOption((option) =>
+      option
+        .setName("product")
+        .setDescription("What to give them")
+        .setRequired(true)
+        .addChoices(
+          ...Object.keys(require("./products")).map((name) => ({
+            name: name.slice(0, 100),
+            value: name,
+          }))
+        )
+    )
+    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
+    .toJSON(),
+
+  new SlashCommandBuilder()
     .setName("resend")
     .setDescription("Send a buyer their download link and key again")
     .addStringOption((option) =>

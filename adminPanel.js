@@ -62,6 +62,16 @@ const ACTIONS = {
         ],
     },
 
+    deliver: {
+        label: "Give access", emoji: "🎁", style: ButtonStyle.Primary,
+        title: "Give somebody a product",
+        fields: [
+            { id: "user", label: "Discord id", required: true },
+            { id: "email", label: "Any email — the record is filed under it", required: true },
+            { id: "product", label: "Product name", required: true },
+        ],
+    },
+
     revokekey: {
         label: "Kill key", emoji: "🔒", style: ButtonStyle.Danger,
         title: "Revoke a licence key",
@@ -92,7 +102,7 @@ const ACTIONS = {
 // on its own, where a misclick is least likely.
 const LAYOUT = [
     ["stats", "health", "pending", "lapsed"],
-    ["customer", "resend", "sync", "grantrole"],
+    ["customer", "resend", "deliver", "sync", "grantrole"],
     ["revokekey", "restorekey", "refund", "unrefund"],
 ];
 
