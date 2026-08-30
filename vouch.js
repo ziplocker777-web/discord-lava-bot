@@ -63,6 +63,34 @@ function save(data) {
     fs.writeFileSync(STORE, JSON.stringify(data, null, 2));
 }
 
+/**
+ * A name that will actually be visible above a review.
+ *
+ * Discord display names can be made of characters no font draws. One of the
+ * first reviewers had set theirs to U+1CBC, an unassigned slot in the Georgian
+ * block: the embed carried the name correctly and the channel showed a blank
+ * space above the stars.
+ *
+ * Chasing individual codepoints is a losing game -- there are thousands, and a
+ * new one every Unicode release. The rule is inverted instead: a name has to
+ * contain at least one character from a script somebody actually reads,
+ * otherwise it is not a name as far as this is concerned.
+ */
+const READABLE = /[\p{Script=Latin}\p{Script=Cyrillic}\p{Script=Greek}\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}\p{Script=Arabic}\p{Script=Hebrew}\p{Script=Thai}\p{Nd}]/u;
+
+// The handful of blanks that live inside a real script and so pass the test
+// above: the Hangul fillers are the classic way to have no name at all.
+const FILLERS = /[ᅠᅟㅤﾠ]/gu;
+
+function displayName(user) {
+    const usable = (v) => {
+        const trimmed = String(v || "").trim();
+        return READABLE.test(trimmed.replace(FILLERS, "")) ? trimmed : null;
+    };
+
+    return usable(user.globalName) || usable(user.username) || "A buyer";
+}
+
 /** The buyer-facing name: the raw subscription title is never shown to anyone. */
 function shownName(title) {
     return title === "Subscription ziplocker" ? "your subscription" : title;
@@ -339,7 +367,7 @@ async function handleVouch(interaction, client) {
             const embed = new EmbedBuilder()
                 .setColor(0xFFFFFF)
                 .setAuthor({
-                    name: interaction.user.globalName || interaction.user.username,
+                    name: displayName(interaction.user),
                     iconURL: interaction.user.displayAvatarURL(),
                 })
                 .setDescription(`${stars}\n\n${words ? `> ${words.replace(/\n/g, "\n> ")}` : "_No words, just the rating._"}`)
