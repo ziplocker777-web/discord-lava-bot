@@ -194,11 +194,9 @@ async function candidates(client) {
 function buildPanel() {
     const embed = new EmbedBuilder()
         .setColor(0xFFFFFF)
-        .setTitle("⭐  Leave a review")
+        .setTitle("Leave a review")
         .setDescription(
-            "Bought something here? Tell people how it went.\n\n" +
-            "One button, one small form: a score out of five and, if you feel like it, " +
-            "a few words. Takes about ten seconds.");
+            "Bought something here? Rate it out of 5. You can add a few words if you want.");
 
     return {
         embeds: [embed],
@@ -243,9 +241,8 @@ async function movePanel(client) {
 function buildAsk(product) {
     return {
         content:
-            `You've been using **${product}** for a few days now — how's it going?\n\n` +
-            "If you've got ten seconds, a review would genuinely help. One button, " +
-            "a score out of five, and a few words if you feel like it.",
+            `How's **${product}** working out?\n\n` +
+            "If you've got a minute, rate it out of 5. You can add a few words too.",
         components: [new ActionRowBuilder().addComponents(
             new ButtonBuilder()
                 .setCustomId("vouch:open")
@@ -367,8 +364,8 @@ async function handleVouch(interaction, client) {
 
     await interaction.reply({
         content: rating >= PUBLIC_MIN
-            ? "Thank you — posted. That helps more than you'd think."
-            : "Thank you — that's gone straight to the owner, who'd rather fix it than frame it.",
+            ? "Thanks, it's up in the channel."
+            : "Thanks. This one's gone to the owner directly.",
         flags: 64,
     });
 

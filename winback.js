@@ -171,11 +171,10 @@ function buildAsk(product) {
 
     return {
         content:
-            `Hey — you started getting **${product}** a little while ago and it didn't go through.\n\n` +
-            "This isn't a sales pitch and there's nothing to click to buy. If something got " +
-            "in the way I'd just like to know what, because it's probably getting in " +
-            "somebody else's way too.\n\n" +
-            "_One tap and you'll never hear from me about this again._",
+            `You started buying **${product}** and it didn't go through.\n\n` +
+            "Not a sales pitch, and there's nothing here to buy. If something got in the " +
+            "way, it'd help to know what — it's probably tripping up other people too.\n\n" +
+            "_One tap, and that's the end of it._",
         components: rows,
     };
 }
@@ -240,7 +239,7 @@ async function handleWinback(interaction, client) {
     save(store);
 
     await interaction.reply({
-        content: "Thanks — that's genuinely useful. That's the last you'll hear from me about it.",
+        content: "Thanks, that's useful. That's the last of it.",
         flags: 64,
     });
 
