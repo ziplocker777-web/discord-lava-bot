@@ -3,6 +3,7 @@ const { Client, GatewayIntentBits } = require("discord.js");
 const { addRefund } = require("./refundedEmails");
 const { getPurchaseForProduct, getAllPurchases } = require("./purchaseStore");
 const { getRolesForProduct } = require("./roles");
+const { findByOwner, setRevoked } = require("./watermarkStore");
 const KNOWN_PRODUCT_IDS = require("./products");
 
 // Note: refundedEmails.json still blocks the WHOLE email from future /getrole and
@@ -51,6 +52,17 @@ if (!purchase) {
 if (!purchase.discordId) {
     console.log("В записи нет discordId — роль придётся снять вручную, если она вообще была выдана.");
     process.exit(0);
+}
+
+// Ключ забирается до ролей и независимо от них: у товара может не быть ролей
+// вовсе, но ключ при этом быть — и без этого возврат означал "деньги назад,
+// программа остаётся", то есть продукт уезжал бесплатно.
+const record = findByOwner(purchase.discordId, purchase.productId);
+if (record && !record.revoked) {
+    setRevoked(record.licenseKey, true);
+    console.log(`Ключ ${record.licenseKey} отозван.`);
+} else if (record) {
+    console.log(`Ключ ${record.licenseKey} уже был отозван.`);
 }
 
 const roleIds = getRolesForProduct(purchase.productId);

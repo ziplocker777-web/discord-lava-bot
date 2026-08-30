@@ -3,6 +3,7 @@ const express = require("express");
 const { recordPurchase, getPurchaseForProduct } = require("./purchaseStore");
 const {
     getRolesForPurchase,
+    getRolesForProduct,
     getRolesToRevokeOnCancellation,
     resolveSubscriptionTier,
     tierDownloadsChannelId,
@@ -10,7 +11,8 @@ const {
     SUBSCRIPTION_PRODUCT_ID,
 } = require("./roles");
 const { deliverPurchase, streamWatermarkedPackage, buildDeliveryMessage } = require("./delivery");
-const { clearRevoked } = require("./watermarkStore");
+const { clearRevoked, findByOwner, setRevoked } = require("./watermarkStore");
+const { addRefund, removeRefund } = require("./refundedEmails");
 const { registerPresetsApi } = require("./presetsApi");
 const { registerActivateApi } = require("./activateApi");
 const KNOWN_PRODUCT_IDS = require("./products");
@@ -59,6 +61,30 @@ const RENEWAL_FAILURE_EVENT_TYPES = [
     "subscription.recurring.payment.failed",
     "subscription.recurring.failed",
 ];
+
+/**
+ * A refund, and a chargeback, which are not the same thing.
+ *
+ * A refund is issued by the seller: the decision has already been made, so
+ * acting on it automatically only carries out what was decided. A chargeback is
+ * forced by a bank and can be wrong -- a mistaken dispute would strip a paying
+ * customer -- so that one only ever reports.
+ *
+ * Read from status as well as type, the same way the others learned to: this
+ * gateway has already been seen putting the meaning of an event in status while
+ * type said something more generic.
+ */
+function isRefundEvent(event) {
+    const both = ((event.eventType || "") + " " + (event.status || "")).toLowerCase();
+    if (!event.eventType) return false;
+    return both.includes("refund") && !both.includes("chargeback");
+}
+
+function isChargebackEvent(event) {
+    const both = ((event.eventType || "") + " " + (event.status || "")).toLowerCase();
+    if (!event.eventType) return false;
+    return both.includes("chargeback") || both.includes("dispute");
+}
 
 function isPaymentSuccessEvent(event) {
     const type = (event.eventType || "").toLowerCase();
@@ -184,7 +210,18 @@ function startWebhookServer(client) {
         const event = req.body;
 
         try {
-            if (isPaymentSuccessEvent(event)) {
+            if (isRefundEvent(event)) {
+                // Deliberately ahead of the success test. A refund arriving as
+                // "payment.refunded" with status "completed" satisfies that test
+                // as well, and would grant a role instead of taking one back.
+                console.log(`Refund event received: ${event.eventType}`);
+                await handleRefund(client, event);
+                return res.sendStatus(200);
+            } else if (isChargebackEvent(event)) {
+                console.log(`Chargeback event received: ${event.eventType} — reporting only.`);
+                await handleChargeback(client, event);
+                return res.sendStatus(200);
+            } else if (isPaymentSuccessEvent(event)) {
                 console.log(`Payment success event received: ${event.eventType}`);
 
                 const email = event.buyer?.email;
@@ -228,6 +265,12 @@ function startWebhookServer(client) {
                     if (discordId && event.product?.id) {
                         const restored = clearRevoked(discordId, event.product.id);
                         if (restored) console.log(`License key ${restored} restored for ${discordId} after payment.`);
+                    }
+
+                    // Same reasoning: somebody refunded once and buying again must
+                    // not stay locked out of the thing they have just paid for.
+                    if (removeRefund(email)) {
+                        console.log(`${email} taken off the refund list after paying again.`);
                     }
                 }
 
@@ -444,6 +487,117 @@ async function grantRole(client, discordId, purchase) {
         await member.roles.remove(staleRoleId);
         console.log(`Superseded tier role ${staleRoleId} removed from ${discordId}`);
     }
+}
+
+/**
+ * Tell the owner something happened. Their DMs, never a channel customers can
+ * read, because these lines carry buyer email addresses.
+ */
+async function notifyOwner(client, text) {
+    try {
+        const channelId = process.env.REVOKE_NOTIFY_CHANNEL_ID;
+        if (channelId) {
+            const channel = await client.channels.fetch(channelId);
+            await channel.send(text);
+            return;
+        }
+        const guild = await client.guilds.fetch(process.env.GUILD_ID);
+        const owner = await guild.fetchOwner();
+        await owner.send(text);
+    } catch (err) {
+        console.warn(`Could not notify the owner (${err.message}).`);
+    }
+}
+
+/**
+ * A refund the seller issued: undo the sale.
+ *
+ * Three things go, and they are separate on purpose. The role closes the
+ * channels. The licence key stops the configurator that is already sitting on
+ * their disk -- without it a refund meant "money back, keep the software". The
+ * email goes on the refund list so /getrole cannot simply re-issue everything a
+ * minute later.
+ *
+ * The refund list is per EMAIL, not per product: someone who refunds one thing
+ * and legitimately owns another loses self-serve access to both and has to ask.
+ * That was already true when this was a manual script and is not made worse by
+ * doing it here, but it is now going to happen more often.
+ */
+async function handleRefund(client, event) {
+    const email = event.buyer?.email;
+    const productId = event.product?.id;
+    const productTitle = event.product?.title || productId || "unknown product";
+
+    let discordId = event.clientUtm?.utm_content || null;
+    if (!discordId && email) {
+        const purchase = getPurchaseForProduct(email, productId);
+        discordId = purchase?.discordId || null;
+    }
+
+    const did = [];
+
+    if (email) {
+        addRefund(email.trim().toLowerCase());
+        did.push("blocked from /getrole");
+
+        recordPurchase(email, {
+            productId,
+            productTitle: event.product?.title,
+            contractId: event.contractId,
+            timestamp: event.timestamp,
+            discordId,
+            status: "refunded",
+        });
+    }
+
+    if (discordId && productId) {
+        const record = findByOwner(discordId, productId);
+        if (record && !record.revoked) {
+            setRevoked(record.licenseKey, true);
+            did.push(`key ${record.licenseKey} revoked`);
+        }
+    }
+
+    if (discordId) {
+        try {
+            const guild = await client.guilds.fetch(process.env.GUILD_ID);
+            const member = await guild.members.fetch({ user: discordId, force: true });
+            for (const roleId of getRolesForProduct(productId)) {
+                if (!member.roles.cache.has(roleId)) continue;
+                await member.roles.remove(roleId);
+                did.push(`role ${roleId} removed`);
+            }
+        } catch (err) {
+            console.error(`Refund: could not touch roles for ${discordId}: ${err.message}`);
+        }
+    } else {
+        console.warn("Refund webhook without a resolvable discordId — role and key left alone.");
+    }
+
+    console.log(`Refund handled for ${email || "unknown"}: ${did.join(", ") || "nothing to undo"}`);
+
+    await notifyOwner(client,
+        `**Refund processed**\n\n• ${email || "unknown"} — ${productTitle}\n` +
+        `${did.length ? did.map((d) => `  ‣ ${d}`).join("\n") : "  ‣ nothing needed undoing"}`);
+}
+
+/**
+ * A chargeback: report it, change nothing.
+ *
+ * Forced by a bank rather than decided by the seller, and banks get it wrong.
+ * Stripping a paying customer over a mistaken dispute costs more than the few
+ * minutes it takes to look at one by hand, so this only ever raises a hand.
+ */
+async function handleChargeback(client, event) {
+    const email = event.buyer?.email || "unknown";
+    const productTitle = event.product?.title || event.product?.id || "unknown product";
+    const amount = event.amount ?? event.receipt?.amount;
+    const currency = event.currency || event.receipt?.currency || "";
+
+    await notifyOwner(client,
+        `**Chargeback — needs a look**\n\n` +
+        `• ${email} — ${productTitle}${amount ? ` (${amount} ${currency})` : ""}\n` +
+        `Nothing was taken away automatically. Use \`node add-refund.js ${email}\` if it is genuine.`);
 }
 
 async function revokeRole(client, discordId, purchase) {

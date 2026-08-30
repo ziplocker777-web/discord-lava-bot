@@ -32,4 +32,17 @@ function addRefund(email) {
     }
 }
 
-module.exports = { isRefunded, addRefund };
+// Снять блокировку. Вызывается при успешной оплате: человек, которому вернули
+// деньги, а потом купивший снова, иначе остаётся заблокированным навсегда и не
+// может забрать то, за что только что заплатил. Ровно та же ловушка, что была с
+// отозванным ключом — addRefund существовал без пары.
+function removeRefund(email) {
+    const list = load();
+    const normalized = email.trim().toLowerCase();
+    const next = list.filter((e) => e !== normalized);
+    if (next.length === list.length) return false;
+    save(next);
+    return true;
+}
+
+module.exports = { isRefunded, addRefund, removeRefund };
