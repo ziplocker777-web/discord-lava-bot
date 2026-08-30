@@ -282,8 +282,16 @@ function startWebhookServer(client) {
                 if (NOTIFY_SALES) {
                     const amount = event.amount ?? "";
                     const currency = event.currency || "";
+
+                    // A renewal carries the original contract alongside this
+                    // month's one. Worth separating: a new customer and a month
+                    // of recurring revenue are different news, and calling both
+                    // a sale makes the count of new customers meaningless.
+                    const renewal = Boolean(event.parentContractId)
+                        || String(event.eventType || "").includes("recurring");
+
                     await notifyOwner(client,
-                        `**Sale** — ${event.product?.title || "unknown"}` +
+                        `**${renewal ? "Renewal" : "Sale"}** — ${event.product?.title || "unknown"}` +
                         `${tier ? ` (${tier.label})` : ""}\n` +
                         `• ${email || "no email"}${amount ? ` — ${amount} ${currency}` : ""}` +
                         `${discordId ? `\n• <@${discordId}>` : "\n• no discord id on the order"}`);
