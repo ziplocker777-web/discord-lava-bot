@@ -25,6 +25,7 @@ const { startWebhookServer, revokeRole, WATERMARKED_PRODUCT_IDS } = require("./w
 const { getAllPurchases, getPurchaseForProduct, recordPurchase } = require("./purchaseStore.js");
 const { isRefunded } = require("./refundedEmails.js");
 const { handleAdminCommand } = require("./adminCommands.js");
+const { handlePanel } = require("./adminPanel.js");
 const {
     registerAiSupport, handleQuestion, sendWithRetry, recordFeedback, usageSummary,
 } = require("./aiSupport.js");
@@ -286,6 +287,13 @@ client.on(Events.InteractionCreate, async (interaction) => {
     // The admin tools live in their own file: index.js is long enough, and
     // every one of these prints somebody's email, so they answer ephemerally.
     if (interaction.isChatInputCommand() && await handleAdminCommand(interaction, client)) {
+        return;
+    }
+
+    // Its buttons and forms. Checked before everything else because the panel
+    // owns its own custom ids and nothing further down should see them.
+    if ((interaction.isButton() || interaction.isModalSubmit())
+        && await handlePanel(interaction, client)) {
         return;
     }
 

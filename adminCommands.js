@@ -25,6 +25,14 @@ const lava = axios.create({
     timeout: 30000,
 });
 
+// The panel asks for a role by the name a person would say, not by the .env key.
+const ROLE_ENV_BY_NAME = {
+    buyer: "ROLE_ID",
+    basic: "BASIC_ROLE_ID",
+    membership: "SUBSCRIBE_ROLE_ID",
+    premium: "PREMIUM_ROLE_ID",
+};
+
 const ROLE_NAMES = () => ({
     [process.env.ROLE_ID]: "buyer",
     [process.env.SUBSCRIBE_ROLE_ID]: "Membership",
@@ -33,6 +41,23 @@ const ROLE_NAMES = () => ({
 });
 
 const when = (t) => (t ? new Date(t).toISOString().replace("T", " ").slice(0, 16) : "—");
+
+/**
+ * The same handlers serve a slash command and a button panel, and the two carry
+ * their arguments in different places -- options on one, modal fields on the
+ * other. Asking both here means none of the handlers below has to care which
+ * door the admin came through.
+ */
+function input(interaction, name) {
+    if (typeof interaction.isChatInputCommand === "function" && interaction.isChatInputCommand()) {
+        return interaction.options.getString(name) || "";
+    }
+    try {
+        return interaction.fields.getTextInputValue(name) || "";
+    } catch {
+        return "";
+    }
+}
 
 /** Every subscription lava.top knows about for one buyer. */
 async function subscriptionsFor(query) {
@@ -67,7 +92,7 @@ async function subscriptionsFor(query) {
 /* ------------------------------------------------------------- /customer --- */
 
 async function customer(interaction, client) {
-    const query = interaction.options.getString("who").trim();
+    const query = input(interaction, "who").trim();
     const lines = [];
 
     const keys = search(query);
@@ -150,7 +175,7 @@ async function customer(interaction, client) {
 /* --------------------------------------------------- /revokekey /restorekey */
 
 async function setKeyState(interaction, revoked) {
-    const query = interaction.options.getString("who").trim();
+    const query = input(interaction, "who").trim();
     const matches = search(query);
 
     if (matches.length === 0) {
@@ -251,20 +276,32 @@ async function lapsed(interaction) {
  * to go dead, so nothing should ever decide it has.
  */
 async function grantrole(interaction, client) {
-    const user = interaction.options.getUser("user");
-    const roleEnv = interaction.options.getString("role");
-    const email = (interaction.options.getString("email") || "").trim().toLowerCase();
+    // A slash command can offer a real user picker; a modal can only take text,
+    // so the panel asks for an id instead. Both end up as an id here.
+    const picked = typeof interaction.options?.getUser === "function"
+        ? interaction.options.getUser("user")
+        : null;
+    const userId = picked ? picked.id : input(interaction, "user").replace(/[<@!>]/g, "").trim();
+
+    const asked = (input(interaction, "role") || "").trim();
+    const roleEnv = ROLE_ENV_BY_NAME[asked.toLowerCase()] || asked;
+    const email = input(interaction, "email").trim().toLowerCase();
+
+    if (!/^\d{17,20}$/.test(userId)) {
+        return interaction.editReply(`\`${userId || "(empty)"}\` is not a Discord id.`);
+    }
 
     const roleId = process.env[roleEnv];
     if (!roleId) {
-        return interaction.editReply(`\`${roleEnv}\` is not set in .env — nothing to grant.`);
+        return interaction.editReply(
+            `Don't know a role called \`${asked}\`. Use one of: buyer, Basic, Membership, Premium.`);
     }
 
     const guild = await client.guilds.fetch(process.env.GUILD_ID);
-    const member = await guild.members.fetch({ user: user.id, force: true });
+    const member = await guild.members.fetch({ user: userId, force: true });
 
     if (member.roles.cache.has(roleId)) {
-        return interaction.editReply(`<@${user.id}> already has that role.`);
+        return interaction.editReply(`<@${userId}> already has that role.`);
     }
 
     await member.roles.add(roleId);
@@ -275,13 +312,13 @@ async function grantrole(interaction, client) {
             productId: null,
             productTitle: `Granted by hand (${roleEnv})`,
             contractId: `manual-${Date.now()}`,
-            discordId: user.id,
+            discordId: userId,
             status: "manual",
         });
         note = `\nRecorded against \`${email}\` — the nightly sweep will never take it back.`;
     }
 
-    return interaction.editReply(`✅ Gave <@${user.id}> the **${roleEnv}** role.${note}`);
+    return interaction.editReply(`✅ Gave <@${userId}> the **${asked || roleEnv}** role.${note}`);
 }
 
 /* ---------------------------------------------------------------- /refund --- */
@@ -293,8 +330,8 @@ async function grantrole(interaction, client) {
  * webhook did not see: the role, the key, and the block on claiming it again.
  */
 async function refund(interaction, client) {
-    const email = interaction.options.getString("email").trim().toLowerCase();
-    const title = interaction.options.getString("product");
+    const email = input(interaction, "email").trim().toLowerCase();
+    const title = input(interaction, "product");
 
     const purchases = getAllPurchases(email) || [];
     if (purchases.length === 0) {
@@ -360,7 +397,7 @@ async function refund(interaction, client) {
  * which is the one failure that leaves somebody having paid for nothing.
  */
 async function resend(interaction, client) {
-    const query = interaction.options.getString("who").trim();
+    const query = input(interaction, "who").trim();
 
     const keys = search(query);
     if (keys.length === 0) {
@@ -489,7 +526,7 @@ async function stats(interaction) {
  * that destructive needs a way back that does not involve an SSH session.
  */
 async function unrefund(interaction, client) {
-    const email = interaction.options.getString("email").trim().toLowerCase();
+    const email = input(interaction, "email").trim().toLowerCase();
     const did = [];
 
     if (removeRefund(email)) did.push("taken off the refund list");
@@ -554,7 +591,7 @@ async function pending(interaction) {
  * a way to lose all of that in one command.
  */
 async function sync(interaction, client) {
-    const email = interaction.options.getString("email").trim().toLowerCase();
+    const email = input(interaction, "email").trim().toLowerCase();
 
     let subs;
     try {
@@ -657,7 +694,14 @@ ${last.slice(-400)}
 
 /* ------------------------------------------------------------------------- */
 
+/** The button panel. Defined here so it lands in the same permission gate. */
+async function admin(interaction) {
+    const { buildPanel } = require("./adminPanel");
+    return interaction.editReply(buildPanel());
+}
+
 const HANDLERS = {
+    admin,
     customer,
     revokekey: (i) => setKeyState(i, true),
     restorekey: (i) => setKeyState(i, false),
@@ -688,4 +732,4 @@ async function handleAdminCommand(interaction, client) {
     return true;
 }
 
-module.exports = { handleAdminCommand };
+module.exports = { handleAdminCommand, HANDLERS };

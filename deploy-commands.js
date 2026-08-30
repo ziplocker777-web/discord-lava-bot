@@ -78,6 +78,12 @@ const commands = [
     .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
 
 new SlashCommandBuilder()
+    .setName("admin")
+    .setDescription("Every admin tool, as buttons")
+    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
+    .toJSON(),
+
+  new SlashCommandBuilder()
     .setName("unrefund")
     .setDescription("Undo a refund: unblock the email and bring their key back")
     .addStringOption((option) =>
