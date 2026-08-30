@@ -57,15 +57,6 @@ const PUBLIC_MIN = Number(process.env.VOUCH_PUBLIC_MIN || 4);
 
 const EVERY_MS = 60 * 60 * 1000;
 
-/**
- * A word beside the stars.
- *
- * Five filled stars read as "five out of five" only after counting them. The
- * word is understood before the counting starts, which is the whole job of the
- * top line of a review.
- */
-const VERDICT = { 5: "Excellent", 4: "Good", 3: "Okay", 2: "Poor", 1: "Bad" };
-
 // Gold for a review, so a wall of them reads as one thing at a glance.
 const GOLD = 0xF0B232;
 const WHITE = 0xFFFFFF;
@@ -209,27 +200,26 @@ async function candidates(client) {
  * fixed no matter which field they are in.
  */
 function buildReview(user, rating, words, product, at) {
-    const stars = "⭐".repeat(rating);
-
     const container = new ContainerBuilder()
         .setAccentColor(GOLD)
         .addSectionComponents(
             new SectionBuilder()
                 .addTextDisplayComponents(
                     new TextDisplayBuilder().setContent(`**${displayName(user)}**`),
+                    new TextDisplayBuilder().setContent(`## ${"⭐".repeat(rating)}`),
                     new TextDisplayBuilder().setContent(
-                        `## ${stars}  ${VERDICT[rating] || ""}`.trimEnd()))
+                        words ? `> ${words.replace(/\n/g, "\n> ")}` : "_Rating only, no words._"))
                 // A face at this size is the difference between a row of
                 // messages and a row of people.
                 .setThumbnailAccessory(
                     new ThumbnailBuilder().setURL(user.displayAvatarURL({ size: 128 }))))
+        // The line divides the review from what the review is about, which is
+        // the only division there is: the name, the score and the words are one
+        // thought and belong on one side of it.
         .addSeparatorComponents(
             new SeparatorBuilder()
                 .setDivider(true)
                 .setSpacing(SeparatorSpacingSize.Small))
-        .addTextDisplayComponents(
-            new TextDisplayBuilder().setContent(
-                words ? `> ${words.replace(/\n/g, "\n> ")}` : "_Rating only, no words._"))
         .addTextDisplayComponents(
             new TextDisplayBuilder().setContent(
                 `-# ${product || ""} · <t:${Math.floor((at || Date.now()) / 1000)}:R>`));
