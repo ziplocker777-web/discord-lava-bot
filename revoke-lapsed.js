@@ -3,8 +3,9 @@ require("./env.js").loadEnv();
 /**
  * Revokes tier roles from subscriptions lava.top has terminated.
  *
- *   node revoke-lapsed.js            report only, changes nothing
- *   node revoke-lapsed.js --apply    actually removes the roles
+ *   node revoke-lapsed.js                report only, changes nothing
+ *   node revoke-lapsed.js --apply        actually removes the roles
+ *   node revoke-lapsed.js --test-notify  sends a sample DM and stops
  *
  * Why this exists rather than a webhook handler:
  *
@@ -129,6 +130,45 @@ function readJson(file, fallback) {
     }
 }
 
+/**
+ * Tell the owner what was taken away.
+ *
+ * Straight to their DMs, and never into one of the existing channels: every
+ * channel this bot knows about is one customers can read, and these lines carry
+ * other customers' email addresses. REVOKE_NOTIFY_CHANNEL_ID overrides it for
+ * anyone who would rather have a private staff channel -- but there is no
+ * fallback to a public one, on purpose.
+ *
+ * Only speaks up when something actually happened. A daily "nothing to report"
+ * is a message people stop reading, and then miss the one that mattered.
+ */
+async function notify(client, done) {
+    if (done.length === 0) return;
+
+    const lines = done.map((d) =>
+        `• ${d.email} — ${d.tier}, подписка прекращена ${String(d.terminatedAt).slice(0, 10)}`);
+
+    let body = `**Сняты роли за неоплату** — ${done.length}\n\n${lines.join("\n")}`;
+    if (body.length > 1900) body = `${body.slice(0, 1900)}\n… и ещё несколько, полный список в revokeLog.json`;
+
+    try {
+        const channelId = process.env.REVOKE_NOTIFY_CHANNEL_ID;
+        if (channelId) {
+            const channel = await client.channels.fetch(channelId);
+            await channel.send(body);
+            return;
+        }
+
+        const guild = await client.guilds.fetch(process.env.GUILD_ID);
+        const owner = await guild.fetchOwner();
+        await owner.send(body);
+    } catch (err) {
+        // Closed DMs must not turn a completed sweep into a failed one: the roles
+        // are already gone and revokeLog.json already says so.
+        console.warn(`Could not send the notification (${err.message}) — see revokeLog.json.`);
+    }
+}
+
 function record(entries) {
     const log = readJson(LOG_PATH, []);
     log.push(...entries);
@@ -136,6 +176,24 @@ function record(entries) {
 }
 
 (async () => {
+    // Worth being able to prove the message arrives before relying on it: a DM
+    // to a closed inbox fails silently, and the first real revocation is a bad
+    // time to find that out.
+    if (process.argv.includes("--test-notify")) {
+        const probe = new Client({ intents: [GatewayIntentBits.Guilds] });
+        probe.once("ready", async () => {
+            await notify(probe, [{
+                email: "example@example.com",
+                tier: "membership",
+                terminatedAt: new Date().toISOString(),
+            }]);
+            console.log("Test notification sent, unless a warning above says otherwise.");
+            process.exit(0);
+        });
+        probe.login(process.env.DISCORD_TOKEN);
+        return;
+    }
+
     const exempt = new Set((readJson(EXEMPT_PATH, [])).map(String));
 
     let invoices;
@@ -278,6 +336,7 @@ function record(entries) {
                     reason: "subscription terminated upstream",
                 });
             }
+            await notify(client, done);
         } catch (err) {
             console.error("Failed partway through:", err.message);
         } finally {
