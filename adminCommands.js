@@ -1109,7 +1109,7 @@ async function winback(interaction, client) {
     } else {
         lines.push(`**${people.length} would be asked:**`);
         for (const p of people.slice(0, 10)) {
-            lines.push(`• <@${p.discordId}> — ${p.product} — ${new Date(p.at).toISOString().slice(0, 10)}`);
+            lines.push(`• <@${p.discordId}> — ${p.shown || p.product} — ${new Date(p.at).toISOString().slice(0, 10)}`);
         }
     }
 

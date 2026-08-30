@@ -115,6 +115,13 @@ async function candidates(client) {
         const product = r.product?.name || "";
         if (completed.has(`${email}|${product}`)) continue;
 
+        // "Subscription ziplocker" is the raw lava.top name shared by all three
+        // tiers and is never shown to a buyer -- they know it as Membership or
+        // Premium, which is what the offer says.
+        const shown = product === "Subscription ziplocker"
+            ? `${r.product?.offer || "subscription"} subscription`
+            : product;
+
         const at = Date.parse(r.datetime || r.created || "");
         if (!Number.isFinite(at)) continue;
 
@@ -125,7 +132,7 @@ async function candidates(client) {
         if (picked.has(discordId)) continue;
         picked.add(discordId);
 
-        out.push({ discordId, email, product, at, amount: r.receipt?.amount, currency: r.receipt?.currency });
+        out.push({ discordId, email, product, shown, at, amount: r.receipt?.amount, currency: r.receipt?.currency });
     }
 
     return out;
@@ -158,13 +165,13 @@ async function ask(client, person) {
     store[person.discordId] = {
         askedAt: Date.now(),
         email: person.email,
-        product: person.product,
+        product: person.shown || person.product,
         answered: null,
     };
 
     try {
         const user = await client.users.fetch(person.discordId);
-        await user.send(buildAsk(person.product));
+        await user.send(buildAsk(person.shown || person.product));
         store[person.discordId].sent = true;
     } catch (err) {
         store[person.discordId].sent = false;
