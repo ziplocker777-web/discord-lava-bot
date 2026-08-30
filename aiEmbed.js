@@ -34,7 +34,7 @@ const {
 } = require("discord.js");
 
 const LOOK = {
-    title: "\u{1F916} AI Answer",
+    title: "\u2728 AI Answer",
     colour: {
         // White for anything a customer reads as an answer. The two states that
         // are the bot talking about itself keep a tint, because those are worth
@@ -135,9 +135,13 @@ function buildAnswer({ kind, text, question, user, logId }) {
             new TextDisplayBuilder().setContent(`## ${LOOK.title}`),
         );
 
+        // Plain, not subtext. The question was set in the small grey style as
+        // "context, not a competing headline" and went too far: in a channel it
+        // was the one line you had to squint at, and in /ask it is the only
+        // record of what was asked at all.
         if (question) {
             header.addTextDisplayComponents(
-                new TextDisplayBuilder().setContent(`-# ${clip(question, LOOK.maxQuestion)}`));
+                new TextDisplayBuilder().setContent(`*${clip(question, LOOK.maxQuestion)}*`));
         }
 
         // The avatar belongs in the layout rather than shrunk into a corner: it
