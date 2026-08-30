@@ -503,7 +503,35 @@ async function stats(interaction) {
         return Number.isFinite(t) && now - t < hours * 3600e3;
     });
 
-    const money = (list) => {
+    /**
+     * What actually arrives, not what the buyer paid.
+     *
+     * lava.top takes a commission on every sale -- eight per cent, on all 156 of
+     * them -- and it is in the invoice as `fee`. Reporting the gross overstates
+     * takings by that much, which is exactly the kind of number that stops
+     * matching the bank and makes the whole panel untrustworthy.
+     *
+     * Refunds are subtracted from our own list because lava.top does not mark
+     * them: a refunded sale still reads COMPLETED in the API for ever, so the
+     * only record that it happened is the one this bot keeps.
+     */
+    const refundedList = (() => {
+        try { return require("./refundedEmails.json"); } catch { return []; }
+    })();
+
+    const net = (list) => {
+        const sums = {};
+        for (const r of list) {
+            const email = String(r.buyer?.email || "").toLowerCase();
+            if (refundedList.includes(email)) continue;
+            const cur = r.receipt?.currency || r.amountTotal?.currency || "?";
+            const amount = r.receipt?.amount ?? r.amountTotal?.amount ?? 0;
+            sums[cur] = (sums[cur] || 0) + amount - (r.receipt?.fee || 0);
+        }
+        return Object.entries(sums).map(([c, v]) => `${v.toFixed(2)} ${c}`).join(", ") || "—";
+    };
+
+    const gross = (list) => {
         const sums = {};
         for (const r of list) {
             const cur = r.receipt?.currency || r.amountTotal?.currency || "?";
@@ -555,14 +583,20 @@ async function stats(interaction) {
         return total + (tier?.prices?.USD || 0);
     }, 0);
 
+    const refundedHere = paid.filter((r) =>
+        refundedList.includes(String(r.buyer?.email || "").toLowerCase())).length;
+
     return interaction.editReply([
-        `**24 hours** — ${day.length} sale(s), ${money(day)}`,
-        `**7 days** — ${week.length} sale(s), ${money(week)}`,
-        `**30 days** — ${month.length} sale(s), ${money(month)}`,
-        `**Since ${oldest ? when(oldest).slice(0, 10) : "the start"}** — ${paid.length} sale(s), ${money(paid)}`,
+        "**Taken, after commission**",
+        `• 24 hours — ${day.length} sale(s), ${net(day)}`,
+        `• 7 days — ${week.length} sale(s), ${net(week)}`,
+        `• 30 days — ${month.length} sale(s), ${net(month)}`,
+        `• since ${oldest ? when(oldest).slice(0, 10) : "the start"} — ${paid.length} sale(s), **${net(paid)}**`,
+        "",
+        `_Gross was ${gross(paid)}; lava.top's cut and ${refundedHere} known refund(s) are already off._`,
         "",
         `**Subscriptions running** — ${live.length}` +
-        (recurring ? ` — ${recurring.toFixed(2)} USD a month if they all renew` : ""),
+        (recurring ? ` — ${recurring.toFixed(2)} USD a month before commission` : ""),
         "",
         top ? `**This week**\n${top}` : "_No sales this week._",
     ].join("\n").slice(0, 1990));
@@ -582,12 +616,18 @@ async function unrefund(interaction, client) {
     const did = [];
 
     if (removeRefund(email)) did.push("taken off the refund list");
-    else did.push("was not on the refund list");
 
     for (const k of search(email)) {
         if (!k.revoked) continue;
         setRevoked(k.licenseKey, false);
         did.push(`key \`${k.licenseKey}\` restored`);
+    }
+
+    // Saying "undone" when nothing was undone is how a panel stops being
+    // trusted -- the same fault /refund had an hour ago.
+    if (did.length === 0) {
+        return interaction.editReply(
+            `\`${email}\` was not blocked and has no revoked key. Nothing to undo.`);
     }
 
     return interaction.editReply(
