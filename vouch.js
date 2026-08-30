@@ -208,7 +208,7 @@ function buildReview(user, rating, words, product, at) {
                     new TextDisplayBuilder().setContent(`**${displayName(user)}**`),
                     new TextDisplayBuilder().setContent(`## ${"⭐".repeat(rating)}`),
                     new TextDisplayBuilder().setContent(
-                        words ? `> ${words.replace(/\n/g, "\n> ")}` : "_Rating only, no words._"))
+                        words || "_Rating only, no words._"))
                 // A face at this size is the difference between a row of
                 // messages and a row of people.
                 .setThumbnailAccessory(
