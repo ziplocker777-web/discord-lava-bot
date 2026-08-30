@@ -316,6 +316,43 @@ let client = null;
 let faqText = null;
 
 /**
+ * The Discord client, kept only so the assistant can say when it has stopped
+ * working.
+ *
+ * This is the failure nobody sees: the gateway goes down or the credit runs out,
+ * and the assistant keeps answering "something went wrong, open a ticket" to
+ * every customer for as long as it takes somebody to notice. It has happened
+ * before. Now it says so once, and says so again when it recovers.
+ */
+let discord = null;
+let aiBroken = null;
+
+async function reportAi(broken, detail) {
+    if (!discord) return;
+    const { notifyOwner, clearThrottle } = require("./ownerNotify");
+
+    if (broken) {
+        if (aiBroken === detail) return;
+        aiBroken = detail;
+        clearThrottle("ai-back");
+        await notifyOwner(discord,
+            `**The support assistant has stopped answering**\n\n${detail}\n\n` +
+            `Customers are being told to open a ticket instead.`,
+            { key: "ai-down", cooldownMs: 60 * 60 * 1000 });
+        return;
+    }
+
+    if (aiBroken) {
+        const was = aiBroken;
+        aiBroken = null;
+        clearThrottle("ai-down");
+        await notifyOwner(discord,
+            `**The support assistant is answering again**\n\nIt was: ${was}`,
+            { key: "ai-back", cooldownMs: 60 * 1000 });
+    }
+}
+
+/**
  * Prices, read from lava.top rather than written into faq.md.
  *
  * A price in the FAQ is a price that goes stale the first time one changes, and
@@ -498,6 +535,8 @@ async function handleQuestion({ question, discordId, username, source }) {
         // The redacted question goes back out, never the raw one: whatever the
         // customer pasted has already been stripped, and the title must not put
         // a licence key back on screen.
+        await reportAi(false);
+
         return {
             kind: answered ? "answer" : "no_answer",
             text: reply,
@@ -513,11 +552,15 @@ async function handleQuestion({ question, discordId, username, source }) {
         }
         if (err instanceof Anthropic.AuthenticationError) {
             console.error("[ai] ANTHROPIC_API_KEY is missing or invalid");
+            // Out of credit looks exactly like this on a gateway, and that is
+            // the likelier of the two: the key worked yesterday.
+            await reportAi(true, "The API key was rejected — most likely the credit has run out.");
         } else if (err instanceof Anthropic.APIError && err.status >= 500) {
             // The gateway is down, not the bot. Worth saying plainly: "something
             // went wrong on my end" sends people to a ticket believing their
             // order broke, when the answer is simply to ask again later.
             console.error(`[ai] gateway is down (${err.status}) — answering is off until it returns`);
+            await reportAi(true, `The provider is returning ${err.status}. Nothing wrong on our side.`);
             logQuestion({ discordId, username, source, question: safe, answered: false, error: `gateway ${err.status}` });
             return {
                 kind: "error",
@@ -614,6 +657,8 @@ function initAi() {
 
 function registerAiSupport(discordClient, { Events }) {
     if (!initAi()) return;
+
+    discord = discordClient;
 
     const channelId = process.env.AI_CHANNEL_ID || null;
     console.log(

@@ -15,6 +15,7 @@ const { clearRevoked, findByOwner, setRevoked } = require("./watermarkStore");
 const { addRefund, removeRefund } = require("./refundedEmails");
 const { registerPresetsApi } = require("./presetsApi");
 const { registerActivateApi } = require("./activateApi");
+const { notifyOwner } = require("./ownerNotify");
 const KNOWN_PRODUCT_IDS = require("./products");
 
 // Sales are the only notification frequent enough to become wallpaper.
@@ -202,7 +203,7 @@ function startWebhookServer(client) {
     });
 
     registerPresetsApi(app);
-    registerActivateApi(app);
+    registerActivateApi(app, client);
 
     app.post("/webhook/lava", (req, res, next) => {
         console.log(`[webhook] incoming — ip: ${req.ip}, hasApiKey: ${Boolean(req.header("X-Api-Key"))}, time: ${new Date().toISOString()}`);
@@ -293,9 +294,20 @@ function startWebhookServer(client) {
                         await grantRole(client, discordId, event);
                     } catch (err) {
                         console.error("Role grant failed inside Discord:", err.message);
+                        await notifyOwner(client,
+                            `**Paid, but the role could not be granted**\n\n` +
+                            `• <@${discordId}> — ${event.product?.title || "unknown"}\n` +
+                            `• ${email || "no email"}\n` +
+                            `• reason: ${err.message}\n\n` +
+                            `Grant it by hand — they have paid.`);
                     }
                 } else {
                     console.warn("Webhook without discordId in clientUtm.utm_content — role not granted automatically.");
+                    await notifyOwner(client,
+                        `**Paid without a Discord id**\n\n` +
+                        `• ${email || "no email"} — ${event.product?.title || "unknown"}\n\n` +
+                        `The order carries no discord tag, so nothing could be granted ` +
+                        `automatically. They can claim it with \`/getrole\`.`);
                 }
 
                 // For the subscription product the product id alone isn't enough: only
@@ -480,6 +492,19 @@ function startWebhookServer(client) {
             }
         } catch (error) {
             console.error("Critical error inside webhook processing:", error);
+
+            // 200 is returned below, which means lava.top considers this
+            // delivered and will never send it again. If it was a payment, the
+            // customer has paid and whatever should have followed did not
+            // happen -- and nothing else in the system will ever notice.
+            await notifyOwner(client,
+                `**Webhook failed while being processed**\n\n` +
+                `• event: ${req.body?.eventType || "unknown"}\n` +
+                `• ${req.body?.buyer?.email || "no email"} — ${req.body?.product?.title || "unknown"}\n` +
+                `• error: ${error.message}\n\n` +
+                `lava.top has been told this was delivered and will not resend it. ` +
+                `If it was a payment, check that they got their role and download.`);
+
             return res.status(200).send("Webhook received with internal tracking error");
         }
     });
@@ -539,26 +564,6 @@ async function grantRole(client, discordId, purchase) {
         if (!member.roles.cache.has(staleRoleId)) continue;
         await member.roles.remove(staleRoleId);
         console.log(`Superseded tier role ${staleRoleId} removed from ${discordId}`);
-    }
-}
-
-/**
- * Tell the owner something happened. Their DMs, never a channel customers can
- * read, because these lines carry buyer email addresses.
- */
-async function notifyOwner(client, text) {
-    try {
-        const channelId = process.env.REVOKE_NOTIFY_CHANNEL_ID;
-        if (channelId) {
-            const channel = await client.channels.fetch(channelId);
-            await channel.send(text);
-            return;
-        }
-        const guild = await client.guilds.fetch(process.env.GUILD_ID);
-        const owner = await guild.fetchOwner();
-        await owner.send(text);
-    } catch (err) {
-        console.warn(`Could not notify the owner (${err.message}).`);
     }
 }
 

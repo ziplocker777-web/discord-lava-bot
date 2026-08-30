@@ -3,7 +3,9 @@ const { getPurchaseByLicenseKey, markActivated } = require("./watermarkStore");
 // No hard multi-use limit for V1 — a shared key still unlocks the app for whoever has
 // it, same tradeoff already accepted for the hidden watermark not being 100% leak-proof.
 // This is a deterrent (raises the bar above "just redistribute the exe"), not a lock.
-function registerActivateApi(app) {
+const { notifyOwner } = require("./ownerNotify");
+
+function registerActivateApi(app, discord) {
     app.post("/activate", (req, res) => {
         const { key } = req.body || {};
 
@@ -19,6 +21,24 @@ function registerActivateApi(app) {
 
         if (purchase.revoked) {
             console.warn(`[activate] revoked key attempted — discordId ${purchase.discordId}, ip: ${req.ip}`);
+
+            // Somebody is running a build whose key was taken back. Usually a
+            // lapsed subscriber who has not noticed; occasionally a key that got
+            // passed around. Throttled per key, because a locked-out app can
+            // retry as often as its owner presses the button.
+            // Not awaited: the app is waiting on this response, and it should
+            // not sit there while a Discord message is sent.
+            if (discord) {
+                notifyOwner(discord,
+                    `**Revoked key was used**\n\n` +
+                    `• ${purchase.email || "unknown"} — ${purchase.productTitle || "unknown"}\n` +
+                    `• <@${purchase.discordId}>\n` +
+                    `• from ${req.ip}\n\n` +
+                    `Their subscription ended. Nothing to do unless you want to let them back in.`,
+                    { key: `revoked-key:${purchase.licenseKey}`, cooldownMs: 12 * 60 * 60 * 1000 })
+                    .catch(() => {});
+            }
+
             return res.status(403).json({ error: "This license key has been revoked" });
         }
 

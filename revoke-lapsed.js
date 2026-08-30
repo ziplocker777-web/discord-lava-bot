@@ -37,6 +37,7 @@ const { Client, GatewayIntentBits } = require("discord.js");
 const { getAllPurchases } = require("./purchaseStore");
 const { resolveTierWithLegacyFallback, TIERS, SUBSCRIPTION_PRODUCT_ID } = require("./roles");
 const { findByOwner, setRevoked } = require("./watermarkStore");
+const { notifyOwner } = require("./ownerNotify");
 
 const APPLY = process.argv.includes("--apply");
 
@@ -184,22 +185,10 @@ async function notify(client, done) {
     let body = `${heading}\n\n${lines.join("\n")}`;
     if (body.length > 1900) body = `${body.slice(0, 1900)}\n… and more — the full list is in revokeLog.json`;
 
-    try {
-        const channelId = process.env.REVOKE_NOTIFY_CHANNEL_ID;
-        if (channelId) {
-            const channel = await client.channels.fetch(channelId);
-            await channel.send(body);
-            return;
-        }
-
-        const guild = await client.guilds.fetch(process.env.GUILD_ID);
-        const owner = await guild.fetchOwner();
-        await owner.send(body);
-    } catch (err) {
-        // Closed DMs must not turn a completed sweep into a failed one: the roles
-        // are already gone and revokeLog.json already says so.
-        console.warn(`Could not send the notification (${err.message}) — see revokeLog.json.`);
-    }
+    // Closed DMs must not turn a completed sweep into a failed one: the roles are
+    // already gone and revokeLog.json already says so, which is what notifyOwner
+    // does about a failure to send.
+    await notifyOwner(client, body);
 }
 
 function record(entries) {
