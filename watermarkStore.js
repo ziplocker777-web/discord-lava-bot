@@ -128,6 +128,42 @@ function setRevoked(licenseKey, revoked) {
     return true;
 }
 
+/** The key issued to one person for one product, or null. */
+function findByOwner(discordId, productId) {
+    const db = load();
+    for (const [token, record] of Object.entries(db)) {
+        if (String(record.discordId) === String(discordId) && record.productId === productId) {
+            return { token, ...record };
+        }
+    }
+    return null;
+}
+
+/**
+ * Puts a revoked key back into service.
+ *
+ * Needed because createWatermark hands back the SAME key when someone buys
+ * again, and never clears the flag. Without this, a lapsed subscriber who
+ * resubscribes gets their old key returned still dead, and their app stays
+ * locked -- a support ticket manufactured out of someone who just paid again.
+ *
+ * Deliberately keyed on the payment itself rather than on delivery: /getrole
+ * will happily re-deliver to someone whose original purchase completed months
+ * ago, so clearing the flag there would undo the revocation for free.
+ */
+function clearRevoked(discordId, productId) {
+    const db = load();
+    for (const record of Object.values(db)) {
+        if (String(record.discordId) !== String(discordId)) continue;
+        if (record.productId !== productId) continue;
+        if (!record.revoked) return null;
+        record.revoked = false;
+        save(db);
+        return record.licenseKey;
+    }
+    return null;
+}
+
 module.exports = {
     createWatermark,
     getWatermark,
@@ -136,4 +172,6 @@ module.exports = {
     getPurchaseByLicenseKey,
     markActivated,
     setRevoked,
+    findByOwner,
+    clearRevoked,
 };

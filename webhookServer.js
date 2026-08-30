@@ -10,6 +10,7 @@ const {
     SUBSCRIPTION_PRODUCT_ID,
 } = require("./roles");
 const { deliverPurchase, streamWatermarkedPackage, buildDeliveryMessage } = require("./delivery");
+const { clearRevoked } = require("./watermarkStore");
 const { registerPresetsApi } = require("./presetsApi");
 const { registerActivateApi } = require("./activateApi");
 const KNOWN_PRODUCT_IDS = require("./products");
@@ -192,6 +193,15 @@ function startWebhookServer(client) {
                     });
 
                     console.log(`Purchase recorded for ${email} (discordId: ${discordId || "—"}, contractId: ${contractIdToStore})`);
+
+                    // Money arriving is the one signal that should bring a dead
+                    // key back. Somebody who lapsed, had their key revoked and
+                    // then resubscribed must not have to open a ticket to use
+                    // what they have just paid for again.
+                    if (discordId && event.product?.id) {
+                        const restored = clearRevoked(discordId, event.product.id);
+                        if (restored) console.log(`License key ${restored} restored for ${discordId} after payment.`);
+                    }
                 }
 
                 if (discordId) {

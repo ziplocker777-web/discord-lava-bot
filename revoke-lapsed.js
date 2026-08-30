@@ -35,9 +35,21 @@ const fs = require("fs");
 const path = require("path");
 const { Client, GatewayIntentBits } = require("discord.js");
 const { getAllPurchases } = require("./purchaseStore");
-const { resolveTierWithLegacyFallback, TIERS } = require("./roles");
+const { resolveTierWithLegacyFallback, TIERS, SUBSCRIPTION_PRODUCT_ID } = require("./roles");
+const { findByOwner, setRevoked } = require("./watermarkStore");
 
 const APPLY = process.argv.includes("--apply");
+
+/**
+ * Days between losing the role and losing the configurator key.
+ *
+ * The two are not the same kind of loss. A role is soft -- channels close, and
+ * one command puts it back. A key is hard: the app already installed on
+ * someone's machine stops opening. Cards expire and banks decline for reasons
+ * that get fixed in a day or two, and bricking a paying customer's tool over
+ * that costs far more than three days of access does.
+ */
+const KEY_GRACE_DAYS = 3;
 
 const LOG_PATH = path.join(__dirname, "revokeLog.json");
 const EXEMPT_PATH = path.join(__dirname, "revokeExempt.json");
@@ -145,12 +157,15 @@ function readJson(file, fallback) {
 async function notify(client, done) {
     if (done.length === 0) return;
 
-    const lines = done.map((d) =>
-        `• ${d.email} — ${d.tier}, ended ${String(d.terminatedAt).slice(0, 10)}`);
+    const lines = done.map((d) => {
+        const took = [d.role ? "role removed" : null, d.key ? `key ${d.key} revoked` : null]
+            .filter(Boolean).join(", ");
+        return `• ${d.email} — ${d.tier}, ended ${String(d.terminatedAt).slice(0, 10)} — ${took}`;
+    });
 
     const heading = done.length === 1
-        ? "**Role revoked — subscription ended**"
-        : `**Roles revoked — subscriptions ended** (${done.length})`;
+        ? "**Subscription ended**"
+        : `**Subscriptions ended** (${done.length})`;
 
     let body = `${heading}\n\n${lines.join("\n")}`;
     if (body.length > 1900) body = `${body.slice(0, 1900)}\n… and more — the full list is in revokeLog.json`;
@@ -190,6 +205,8 @@ function record(entries) {
                 email: "example@example.com",
                 tier: "membership",
                 terminatedAt: new Date().toISOString(),
+                role: true,
+                key: "XXXX-XXXX-XXXX-XXXX",
             }]);
             console.log("Test notification sent, unless a warning above says otherwise.");
             process.exit(0);
@@ -275,77 +292,113 @@ function record(entries) {
     }
 
     if (targets.length === 0) {
-        console.log("\nNothing to revoke.");
+        console.log("\nNothing lapsed.");
         process.exit(0);
     }
 
     // Discord is checked before anything is reported, not only before anything is
-    // removed. A report that lists people whose role is already gone cannot be
-    // acted on -- it has to be re-checked by hand, which is the job it was meant
-    // to do.
+    // removed: a report listing people whose role is already gone cannot be acted
+    // on without checking every line by hand, which is the job it exists to do.
     const client = new Client({ intents: [GatewayIntentBits.Guilds] });
 
     client.once("ready", async () => {
-        const holding = [];
+        const plan = [];
         const done = [];
 
         try {
             const guild = await client.guilds.fetch(process.env.GUILD_ID);
+            const now = Date.now();
 
-            for (const target of targets) {
-                const { sub, roleId, tier } = target;
-                let member;
+            for (const { sub, roleId, tier } of targets) {
+                let holdsRole = false;
+
                 try {
-                    member = await guild.members.fetch({ user: sub.discordId, force: true });
+                    const member = await guild.members.fetch({ user: sub.discordId, force: true });
+                    holdsRole = member.roles.cache.has(roleId);
                 } catch {
                     console.log(`  -  left the server: ${sub.email}`);
-                    continue;
                 }
-                if (!member.roles.cache.has(roleId)) {
-                    console.log(`  -  ${tier} already gone: ${sub.email}`);
-                    continue;
+
+                // The key is chased even when the role has already gone, by hand or
+                // on an earlier run: they lapse together but are taken separately,
+                // and the key is the one that outlives everything.
+                let key = null;
+                const ended = Date.parse(sub.terminatedAt || sub.last || "");
+                const daysSince = Number.isFinite(ended) ? (now - ended) / 86400000 : 0;
+
+                const record = findByOwner(sub.discordId, SUBSCRIPTION_PRODUCT_ID);
+                if (record && !record.revoked) {
+                    if (daysSince >= KEY_GRACE_DAYS) {
+                        key = record.licenseKey;
+                    } else {
+                        const left = (KEY_GRACE_DAYS - daysSince).toFixed(1);
+                        console.log(`  .  ${sub.email} — key kept for another ${left} day(s)`);
+                    }
                 }
-                holding.push(target);
+
+                if (holdsRole || key) plan.push({ sub, roleId, tier, holdsRole, key });
             }
 
-            if (holding.length === 0) {
-                console.log("\nEvery lapsed subscription has already had its role removed.");
+            if (plan.length === 0) {
+                console.log("\nEvery lapsed subscription is already fully revoked.");
                 process.exit(0);
             }
 
-            console.log(`\n${holding.length} lapsed subscription(s) still holding a role:\n`);
-            for (const { sub, tier } of holding) {
-                console.log(`  ${sub.email}  discord ${sub.discordId}  ${tier}` +
-                    `  terminated ${String(sub.terminatedAt || sub.last).slice(0, 19)}`);
+            console.log(`\n${plan.length} lapsed subscription(s) to act on:\n`);
+            for (const p of plan) {
+                const what = [p.holdsRole ? `role ${p.tier}` : null, p.key ? `key ${p.key}` : null]
+                    .filter(Boolean).join(" + ");
+                console.log(`  ${p.sub.email}  discord ${p.sub.discordId}  ${what}` +
+                    `  ended ${String(p.sub.terminatedAt || p.sub.last).slice(0, 10)}`);
             }
 
             if (!APPLY) {
-                console.log("\nReport only. Re-run with --apply to remove these roles.");
+                console.log("\nReport only. Re-run with --apply to carry this out.");
                 process.exit(0);
             }
 
             console.log();
-            for (const { sub, roleId, tier } of holding) {
-                const member = await guild.members.fetch({ user: sub.discordId, force: true });
-                await member.roles.remove(roleId);
-                console.log(`  ${tier} removed from ${sub.email} (${sub.discordId})`);
+            for (const { sub, roleId, tier, holdsRole, key } of plan) {
+                let roleGone = false;
 
-                done.push({
-                    at: new Date().toISOString(),
-                    discordId: sub.discordId,
-                    email: sub.email,
-                    tier,
-                    roleId,
-                    terminatedAt: sub.terminatedAt || sub.last,
-                    reason: "subscription terminated upstream",
-                });
+                if (holdsRole) {
+                    try {
+                        const member = await guild.members.fetch({ user: sub.discordId, force: true });
+                        await member.roles.remove(roleId);
+                        roleGone = true;
+                        console.log(`  ${tier} removed from ${sub.email}`);
+                    } catch (err) {
+                        console.warn(`  could not remove ${tier} from ${sub.email}: ${err.message}`);
+                    }
+                }
+
+                let keyGone = null;
+                if (key && setRevoked(key, true)) {
+                    keyGone = key;
+                    console.log(`  key ${key} revoked for ${sub.email}`);
+                }
+
+                if (roleGone || keyGone) {
+                    done.push({
+                        at: new Date().toISOString(),
+                        discordId: sub.discordId,
+                        email: sub.email,
+                        tier,
+                        roleId,
+                        role: roleGone,
+                        key: keyGone,
+                        terminatedAt: sub.terminatedAt || sub.last,
+                        reason: "subscription terminated upstream",
+                    });
+                }
             }
+
             await notify(client, done);
         } catch (err) {
             console.error("Failed partway through:", err.message);
         } finally {
             if (done.length) record(done);
-            if (APPLY) console.log(`\n${done.length} role(s) removed.`);
+            if (APPLY) console.log(`\n${done.length} subscription(s) acted on.`);
             process.exit(0);
         }
     });
