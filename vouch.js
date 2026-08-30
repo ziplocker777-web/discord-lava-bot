@@ -54,7 +54,6 @@ const PER_SWEEP = Number(process.env.VOUCH_PER_SWEEP || 5);
 const PUBLIC_MIN = Number(process.env.VOUCH_PUBLIC_MIN || 4);
 
 const EVERY_MS = 60 * 60 * 1000;
-const STARS = ["1️⃣", "2️⃣", "3️⃣", "4️⃣", "5️⃣"];
 
 function load(file, fallback) {
     try { return JSON.parse(fs.readFileSync(file, "utf-8")); } catch { return fallback; }
@@ -153,18 +152,22 @@ async function candidates(client) {
  * moved down after every review rather than left to sink.
  */
 function buildPanel() {
+    const embed = new EmbedBuilder()
+        .setColor(0xFFFFFF)
+        .setTitle("⭐  Leave a review")
+        .setDescription(
+            "Bought something here? Tell people how it went.\n\n" +
+            "One button, one small form: a score out of five and, if you feel like it, " +
+            "a few words. Takes about ten seconds.");
+
     return {
-        content:
-            "**How's it going?**\n" +
-            "If you've bought something here, a rating takes five seconds and genuinely helps. " +
-            "Words are optional.\n\n" +
-            "_One rating per person. Yours will appear below._",
+        embeds: [embed],
         components: [new ActionRowBuilder().addComponents(
-            STARS.map((emoji, i) =>
-                new ButtonBuilder()
-                    .setCustomId(`vouch:${i + 1}`)
-                    .setEmoji(emoji)
-                    .setStyle(i + 1 >= 4 ? ButtonStyle.Success : ButtonStyle.Secondary))
+            new ButtonBuilder()
+                .setCustomId("vouch:open")
+                .setLabel("Write a review")
+                .setEmoji("✍️")
+                .setStyle(ButtonStyle.Success)
         )],
     };
 }
@@ -201,14 +204,14 @@ function buildAsk(product) {
     return {
         content:
             `You've been using **${product}** for a few days now — how's it going?\n\n` +
-            "If you've got five seconds, a rating would genuinely help. There's a box for " +
-            "words too, but it's optional.",
+            "If you've got ten seconds, a review would genuinely help. One button, " +
+            "a score out of five, and a few words if you feel like it.",
         components: [new ActionRowBuilder().addComponents(
-            STARS.map((emoji, i) =>
-                new ButtonBuilder()
-                    .setCustomId(`vouch:${i + 1}`)
-                    .setEmoji(emoji)
-                    .setStyle(i + 1 >= 4 ? ButtonStyle.Success : ButtonStyle.Secondary))
+            new ButtonBuilder()
+                .setCustomId("vouch:open")
+                .setLabel("Write a review")
+                .setEmoji("✍️")
+                .setStyle(ButtonStyle.Success)
         )],
     };
 }
@@ -240,9 +243,9 @@ async function handleVouch(interaction, client) {
     const id = interaction.customId || "";
     if (!id.startsWith("vouch:")) return false;
 
-    const part = id.split(":")[1];
-
-    // A star opens the box for words. Required false, so it can be sent empty.
+    // The form carries the score as well as the words, because a Discord form
+    // holds text boxes and nothing else -- there is no way to put five stars
+    // inside one. A typed digit is the price of having the words be visible.
     if (interaction.isButton()) {
         const store = load(STORE, {});
         const already = store[interaction.user.id];
@@ -267,21 +270,38 @@ async function handleVouch(interaction, client) {
         }
 
         const modal = new ModalBuilder()
-            .setCustomId(`vouch:text:${part}`)
-            .setTitle(`${part} out of 5 — anything to add?`)
-            .addComponents(new ActionRowBuilder().addComponents(
-                new TextInputBuilder()
-                    .setCustomId("words")
-                    .setLabel("Optional — leave it blank if you like")
-                    .setStyle(TextInputStyle.Paragraph)
-                    .setRequired(false)
-                    .setMaxLength(600)));
+            .setCustomId("vouch:submit")
+            .setTitle("Leave a review")
+            .addComponents(
+                new ActionRowBuilder().addComponents(
+                    new TextInputBuilder()
+                        .setCustomId("rating")
+                        .setLabel("Score out of 5")
+                        .setPlaceholder("5")
+                        .setStyle(TextInputStyle.Short)
+                        .setRequired(true)
+                        .setMaxLength(1)),
+                new ActionRowBuilder().addComponents(
+                    new TextInputBuilder()
+                        .setCustomId("words")
+                        .setLabel("Anything to add? (optional)")
+                        .setStyle(TextInputStyle.Paragraph)
+                        .setRequired(false)
+                        .setMaxLength(600)));
         await interaction.showModal(modal);
         return true;
     }
 
-    const rating = Number(id.split(":")[2]);
+    const rating = Number((interaction.fields.getTextInputValue("rating") || "").trim());
     const words = (interaction.fields.getTextInputValue("words") || "").trim();
+
+    if (!Number.isInteger(rating) || rating < 1 || rating > 5) {
+        await interaction.reply({
+            content: "That needs to be a whole number from 1 to 5. Press the button again.",
+            flags: 64,
+        });
+        return true;
+    }
 
     const store = load(STORE, {});
     const record = store[interaction.user.id] || {};
