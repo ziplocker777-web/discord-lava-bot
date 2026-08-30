@@ -33,12 +33,14 @@ const ROLE_ENV_BY_NAME = {
     premium: "PREMIUM_ROLE_ID",
 };
 
-const ROLE_NAMES = () => ({
-    [process.env.ROLE_ID]: "buyer",
-    [process.env.SUBSCRIBE_ROLE_ID]: "Membership",
-    [process.env.BASIC_ROLE_ID]: "Basic",
-    [process.env.PREMIUM_ROLE_ID]: "Premium",
-});
+// The four roles this bot hands out, so the rest of somebody's roles are not
+// listed back at an admin who only wants to know what they bought.
+const OUR_ROLE_IDS = () => [
+    process.env.ROLE_ID,
+    process.env.SUBSCRIBE_ROLE_ID,
+    process.env.BASIC_ROLE_ID,
+    process.env.PREMIUM_ROLE_ID,
+].filter(Boolean);
 
 const when = (t) => (t ? new Date(t).toISOString().replace("T", " ").slice(0, 16) : "—");
 
@@ -59,8 +61,8 @@ function input(interaction, name) {
     }
 }
 
-/** Every subscription lava.top knows about for one buyer. */
-async function subscriptionsFor(query) {
+/** Every invoice lava.top holds for one buyer, whatever it was for. */
+async function invoicesFor(query) {
     const rows = [];
     for (let page = 0; page < 20; page += 1) {
         const { data } = await lava.get("/invoices", { params: { page, size: 100 } });
@@ -70,10 +72,13 @@ async function subscriptionsFor(query) {
     }
 
     const q = query.toLowerCase();
-    const mine = rows.filter((r) =>
+    return rows.filter((r) =>
         String(r.buyer?.email || "").toLowerCase() === q
         || String(r.clientUtm?.utm_content || "") === query);
+}
 
+/** The subscriptions among them, folded into one row each. */
+function subscriptionsIn(mine) {
     const byId = new Map();
     for (const r of mine) {
         if (!r.subscriptionStatus) continue;
@@ -138,9 +143,34 @@ async function customer(interaction, client) {
         }
     }
 
-    // ---- subscription, straight from lava.top
+    // ---- what lava.top holds, which is the fuller answer
+    //
+    // The store only knows what a webhook told it, and for a stretch this
+    // summer one of the two webhooks was misconfigured and its deliveries were
+    // bounced -- so a real purchase can be missing from the store and present
+    // here. Reading both sides is the only way to see that.
     try {
-        const subs = await subscriptionsFor(emails[0] || query);
+        const mine = await invoicesFor(emails[0] || query);
+        const known = new Set(purchases.map((p) => p.productTitle));
+        const bought = mine.filter((r) => String(r.status).toUpperCase() === "COMPLETED");
+
+        if (bought.length) {
+            lines.push("", "**On lava.top**");
+            for (const r of bought) {
+                const title = r.product?.name || "?";
+                const flag = known.has(title) ? "" : "  ⚠️ **not in the bot's records**";
+                lines.push(
+                    `• ${title} — ${r.receipt?.amount ?? "?"} ${r.receipt?.currency ?? ""}` +
+                    ` — ${String(r.datetime || r.created).slice(0, 10)}${flag}`);
+            }
+        }
+
+        const unpaid = mine.filter((r) => String(r.status).toUpperCase() !== "COMPLETED");
+        if (unpaid.length) {
+            lines.push(`_…and ${unpaid.length} checkout(s) that never completed._`);
+        }
+
+        const subs = subscriptionsIn(mine);
         if (subs.length) {
             lines.push("", "**Subscriptions**");
             for (const s of subs) {
@@ -157,12 +187,18 @@ async function customer(interaction, client) {
     }
 
     // ---- what Discord shows right now
-    const names = ROLE_NAMES();
+    //
+    // Names come off the roles themselves rather than a table in here: the
+    // role called "buyer" in .env is called something else on the server, and
+    // printing our name for it makes the answer wrong in a way nobody can see.
+    const ours = OUR_ROLE_IDS();
     for (const id of ids) {
         try {
             const guild = await client.guilds.fetch(process.env.GUILD_ID);
             const member = await guild.members.fetch({ user: id, force: true });
-            const held = member.roles.cache.map((r) => names[r.id]).filter(Boolean);
+            const held = member.roles.cache
+                .filter((r) => ours.includes(r.id))
+                .map((r) => r.name);
             lines.push("", `**Roles** — ${held.join(", ") || "none of ours"}`);
         } catch {
             lines.push("", `**Roles** — <@${id}> is not on the server`);
@@ -794,7 +830,7 @@ async function sync(interaction, client) {
 
     let subs;
     try {
-        subs = await subscriptionsFor(email);
+        subs = subscriptionsIn(await invoicesFor(email));
     } catch (err) {
         return interaction.editReply(`lava.top did not answer (${err.response?.status || err.message}).`);
     }
