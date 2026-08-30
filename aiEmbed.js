@@ -34,7 +34,7 @@ const {
 } = require("discord.js");
 
 const LOOK = {
-    title: "\u2728 AI Answer",
+    title: "\u{1F4AC} AI Answer",
     colour: {
         // White for anything a customer reads as an answer. The two states that
         // are the bot talking about itself keep a tint, because those are worth
@@ -141,7 +141,7 @@ function buildAnswer({ kind, text, question, user, logId }) {
         // record of what was asked at all.
         if (question) {
             header.addTextDisplayComponents(
-                new TextDisplayBuilder().setContent(`*${clip(question, LOOK.maxQuestion)}*`));
+                new TextDisplayBuilder().setContent(clip(question, LOOK.maxQuestion)));
         }
 
         // The avatar belongs in the layout rather than shrunk into a corner: it
