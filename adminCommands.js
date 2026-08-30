@@ -335,15 +335,33 @@ async function refund(interaction, client) {
 
     const purchases = getAllPurchases(email) || [];
     if (purchases.length === 0) {
+        // It said it was blocking the email and then did not. Somebody refunded
+        // on lava.top for a purchase this bot never recorded is exactly when the
+        // block matters, so now it actually happens.
+        addRefund(email);
         return interaction.editReply(
-            `No purchase on file for \`${email}\`. Blocking the email alone: run it again with a product if that was not what you wanted.`);
+            `No purchase on file for \`${email}\`, so there was no role or key to take.\n` +
+            `• blocked from /getrole and the redownload panel\n\n` +
+            `\`/unrefund\` undoes this.`);
     }
 
     let purchase;
     if (title) {
-        const productId = KNOWN_PRODUCT_IDS[title];
-        purchase = getPurchaseForProduct(email, productId);
-        if (!purchase) return interaction.editReply(`\`${email}\` has no purchase of **${title}**.`);
+        // The slash command offers a list to pick from; the panel's form is a
+        // plain text box, so the name arrives however it was typed.
+        const wanted = title.trim().toLowerCase();
+        const match = Object.keys(KNOWN_PRODUCT_IDS)
+            .find((name) => name.toLowerCase() === wanted)
+            || Object.keys(KNOWN_PRODUCT_IDS).find((name) => name.toLowerCase().includes(wanted));
+
+        if (!match) {
+            return interaction.editReply(
+                `Don't know a product called **${title}**. One of:\n` +
+                Object.keys(KNOWN_PRODUCT_IDS).map((n) => `• ${n}`).join("\n"));
+        }
+
+        purchase = getPurchaseForProduct(email, KNOWN_PRODUCT_IDS[match]);
+        if (!purchase) return interaction.editReply(`\`${email}\` has no purchase of **${match}**.`);
     } else if (purchases.length > 1) {
         const list = purchases.map((p) => `• ${p.productTitle || p.productId}`).join("\n");
         return interaction.editReply(
@@ -409,6 +427,20 @@ async function resend(interaction, client) {
     }
 
     const record = keys[0];
+
+    // The download route serves one package -- the configurator -- whatever the
+    // token belongs to. Resending a product that is not that package would hand
+    // somebody the wrong file entirely, so it refuses rather than guesses.
+    const { WATERMARKED_PRODUCT_IDS } = require("./webhookServer");
+    if (!WATERMARKED_PRODUCT_IDS.has(record.productId)) {
+        return interaction.editReply(
+            `**${record.productTitle}** is not delivered by this bot — there is no package behind its key, ` +
+            `so resending would send them the configurator by mistake.
+
+` +
+            `Their key is \`${record.licenseKey}\`. Send the files the way you normally do.`);
+    }
+
     let delivery;
     try {
         delivery = deliverPurchase({
@@ -482,6 +514,7 @@ async function stats(interaction) {
 
     const day = within(24);
     const week = within(24 * 7);
+    const month = within(24 * 30);
 
     // Subscriptions that are genuinely still running: cancelled ones keep the
     // ACTIVE label until the period they paid for is over.
@@ -489,7 +522,8 @@ async function stats(interaction) {
     for (const r of rows) {
         if (!r.subscriptionStatus) continue;
         const id = r.parentInvoice?.id || r.id;
-        const e = subs.get(id) || { status: null, expiredAt: null };
+        const e = subs.get(id) || { status: null, expiredAt: null, offer: null };
+        if (r.product?.offer) e.offer = r.product.offer;
         if (r.subscriptionStatus === "ACTIVE") e.status = "ACTIVE";
         else if (e.status !== "ACTIVE") e.status = r.subscriptionStatus;
         if (r.subscriptionDetails?.expiredAt) e.expiredAt = r.subscriptionDetails.expiredAt;
@@ -506,11 +540,29 @@ async function stats(interaction) {
     const top = Object.entries(sellers).sort((a, b) => b[1] - a[1]).slice(0, 5)
         .map(([name, n]) => `• ${name} — ${n}`).join("\n");
 
+    // All time is only as long as lava.top's invoice list reaches back, so it is
+    // labelled by the date of the earliest one rather than called "all time".
+    const oldest = paid
+        .map((r) => Date.parse(r.datetime || r.created || ""))
+        .filter(Number.isFinite)
+        .sort((a, b) => a - b)[0];
+
+    // Summed from each subscription's own tier rather than one assumed price:
+    // Membership and Premium are different money, and Membership itself exists
+    // at two prices because the old subscribers kept theirs.
+    const recurring = live.reduce((total, sv) => {
+        const tier = TIERS.find((t) => t.label.toLowerCase() === String(sv.offer || "").toLowerCase());
+        return total + (tier?.prices?.USD || 0);
+    }, 0);
+
     return interaction.editReply([
-        `**Last 24 hours** — ${day.length} sale(s), ${money(day)}`,
-        `**Last 7 days** — ${week.length} sale(s), ${money(week)}`,
+        `**24 hours** — ${day.length} sale(s), ${money(day)}`,
+        `**7 days** — ${week.length} sale(s), ${money(week)}`,
+        `**30 days** — ${month.length} sale(s), ${money(month)}`,
+        `**Since ${oldest ? when(oldest).slice(0, 10) : "the start"}** — ${paid.length} sale(s), ${money(paid)}`,
         "",
-        `**Subscriptions running** — ${live.length}`,
+        `**Subscriptions running** — ${live.length}` +
+        (recurring ? ` — ${recurring.toFixed(2)} USD a month if they all renew` : ""),
         "",
         top ? `**This week**\n${top}` : "_No sales this week._",
     ].join("\n").slice(0, 1990));
@@ -558,8 +610,14 @@ async function pending(interaction) {
     // Read straight from the store: search() answers about one person, and this
     // question is about everybody.
     const store = require("./watermarkStore.json");
+    const { WATERMARKED_PRODUCT_IDS } = require("./webhookServer");
 
+    // Only the products that carry the configurator can be "not activated".
+    // Flash Collection is a folder of presets that drops into an install that is
+    // already working -- it has a key because every download gets one, but there
+    // is no app to type it into, so it would sit in this list for ever.
     const stale = Object.values(store)
+        .filter((k) => WATERMARKED_PRODUCT_IDS.has(k.productId))
         .filter((k) => !k.activationCount && k.createdAt && now - k.createdAt > 24 * 3600e3)
         .sort((a, b) => a.createdAt - b.createdAt);
 
