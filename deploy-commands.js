@@ -120,6 +120,12 @@ new SlashCommandBuilder()
     .toJSON(),
 
   new SlashCommandBuilder()
+    .setName("members")
+    .setDescription("Who joined, how many stayed, and how many of them bought")
+    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
+    .toJSON(),
+
+  new SlashCommandBuilder()
     .setName("top")
     .setDescription("Who spends the most, and how many come back")
     .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)

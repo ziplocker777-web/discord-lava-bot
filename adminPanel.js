@@ -39,6 +39,7 @@ const ACTIONS = {
 
     abandoned: { label: "Lost sales", emoji: "🛒", style: ButtonStyle.Secondary, fields: [] },
     top: { label: "Best buyers", emoji: "🏆", style: ButtonStyle.Secondary, fields: [] },
+    members: { label: "Members", emoji: "👥", style: ButtonStyle.Secondary, fields: [] },
     winback: { label: "Ask why", emoji: "💬", style: ButtonStyle.Secondary, fields: [] },
     vouch: { label: "Reviews", emoji: "⭐", style: ButtonStyle.Secondary, fields: [] },
     vouchpanel: { label: "Post rating panel", emoji: "📌", style: ButtonStyle.Primary, fields: [] },
@@ -107,7 +108,7 @@ const ACTIONS = {
 // person, and the ones that take something away. The dangerous row sits last and
 // on its own, where a misclick is least likely.
 const LAYOUT = [
-    ["stats", "top", "abandoned", "pending"],
+    ["stats", "members", "top", "abandoned", "pending"],
     // The rating panel sits with the reviews it belongs to, not with the things
     // done to one person. It is a repair button: the panel places itself after
     // every review, so this is only for putting one back.

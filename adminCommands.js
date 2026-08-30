@@ -1158,6 +1158,129 @@ async function vouch(interaction, client) {
     return interaction.editReply(lines.join("\n").slice(0, 1990));
 }
 
+/* --------------------------------------------------------------- /members --- */
+
+/**
+ * Join dates, read out of the welcome channel.
+ *
+ * The bot cannot list the server's members: that needs the Server Members
+ * intent, which is off. But Carl-bot has been posting "Welcome, @someone" in
+ * the joins channel since June, each one carrying the id and dated by the
+ * message itself, which is the same information arriving by another road.
+ *
+ * Fourteen pages of history per call, so the result is held for an hour. Nobody
+ * needs this to the minute.
+ */
+let joinCache = { at: 0, rows: [] };
+
+async function joinLog(client) {
+    if (Date.now() - joinCache.at < 60 * 60 * 1000) return joinCache.rows;
+
+    const guild = await client.guilds.fetch(process.env.GUILD_ID);
+    const channels = await guild.channels.fetch();
+    const channel = [...channels.values()].find((c) => c && /joins/i.test(c.name));
+    if (!channel) return [];
+
+    const rows = [];
+    let before;
+    for (let page = 0; page < 25; page += 1) {
+        const batch = await channel.messages.fetch({ limit: 100, before });
+        if (!batch.size) break;
+        for (const m of batch.values()) {
+            const id = String(m.content || "").match(/<@!?(\d+)>/)?.[1];
+            if (id) rows.push({ id, at: m.createdTimestamp });
+            before = m.id;
+        }
+        if (batch.size < 100) break;
+    }
+
+    joinCache = { at: Date.now(), rows };
+    return rows;
+}
+
+async function members(interaction, client) {
+    const guild = await client.guilds.fetch(process.env.GUILD_ID);
+
+    let rows;
+    try {
+        rows = await joinLog(client);
+    } catch (err) {
+        return interaction.editReply(`Could not read the joins channel: ${err.message}`);
+    }
+
+    if (rows.length === 0) {
+        return interaction.editReply(
+            "No join log to read. This counts the welcome messages in the joins " +
+            "channel, so it needs one that the bot can see.");
+    }
+
+    const now = Date.now();
+    const since = (hours) => rows.filter((r) => now - r.at < hours * 3600e3).length;
+
+    // First arrival per person: somebody who left and came back is one person
+    // who has heard of the shop, not two.
+    const first = new Map();
+    for (const r of rows) {
+        const prev = first.get(r.id);
+        if (!prev || r.at < prev) first.set(r.id, r.at);
+    }
+
+    const oldest = Math.min(...rows.map((r) => r.at));
+
+    // Anyone who has ever been issued a key has bought something.
+    const marks = Object.values(require("./watermarkStore.json"));
+    const buyers = new Map();
+    for (const m of marks) {
+        const id = String(m.discordId || "");
+        if (!id || !m.createdAt) continue;
+        const prev = buyers.get(id);
+        if (!prev || m.createdAt < prev) buyers.set(id, m.createdAt);
+    }
+
+    const converted = [...buyers.keys()].filter((id) => first.has(id));
+
+    // How long people take to decide, in days. The median rather than the mean:
+    // one person who bought a month later would drag an average anywhere.
+    const gaps = converted
+        .map((id) => (buyers.get(id) - first.get(id)) / 86400e3)
+        .filter((d) => d >= 0)
+        .sort((a, b) => a - b);
+    const median = gaps.length ? gaps[Math.floor(gaps.length / 2)] : null;
+    const sameDay = gaps.filter((d) => d < 1).length;
+
+    const lines = [
+        "# Members",
+        "### Joined",
+        `• today — ${since(24)}`,
+        `• 7 days — ${since(24 * 7)}`,
+        `• 30 days — ${since(24 * 30)}`,
+        `• since ${new Date(oldest).toISOString().slice(0, 10)} — ${first.size} people` +
+        (rows.length > first.size ? ` (${rows.length - first.size} of them came back later)` : ""),
+        "",
+        "### Now",
+        `${guild.memberCount} on the server — ` +
+        `${Math.max(first.size - guild.memberCount, 0)} of those who joined have gone`,
+        "",
+        "### Bought something",
+        `${converted.length} of ${first.size} — **${(converted.length / first.size * 100).toFixed(1)}%**`,
+    ];
+
+    if (median !== null) {
+        lines.push(
+            `${sameDay} bought the day they arrived; the middle one took ` +
+            `${median < 1 ? "under a day" : `${Math.round(median)} day(s)`}`);
+    }
+
+    if (buyers.size > converted.length) {
+        lines.push(
+            "",
+            `-# ${buyers.size - converted.length} buyer(s) joined before the log ` +
+            "starts and are not counted above.");
+    }
+
+    return interaction.editReply(lines.join("\n").slice(0, 1990));
+}
+
 /* -------------------------------------------------------------- /winback --- */
 
 /**
@@ -1242,6 +1365,7 @@ const HANDLERS = {
     pending,
     abandoned,
     top,
+    members,
     winback,
     vouch,
     vouchpanel,
