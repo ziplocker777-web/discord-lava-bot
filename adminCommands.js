@@ -1082,6 +1082,24 @@ async function top(interaction, client) {
  * Read-only, for the same reason /winback is: this messages real customers, so
  * the list and the wording are worth looking at before either goes anywhere.
  */
+/** Put the rating panel at the bottom of the vouch channel. */
+async function vouchpanel(interaction, client) {
+    const { movePanel } = require("./vouch");
+
+    if (!process.env.VOUCH_CHANNEL_ID) {
+        return interaction.editReply("`VOUCH_CHANNEL_ID` is not set in .env.");
+    }
+
+    try {
+        await movePanel(client);
+        return interaction.editReply(
+            `✅ Posted in <#${process.env.VOUCH_CHANNEL_ID}>.\n` +
+            "It moves itself back to the bottom after every review, so it never gets buried.");
+    } catch (err) {
+        return interaction.editReply(`Could not post it: ${err.message}`);
+    }
+}
+
 async function vouch(interaction, client) {
     const v = require("./vouch");
 
@@ -1092,7 +1110,9 @@ async function vouch(interaction, client) {
         return interaction.editReply(`Could not work out who to ask: ${err.message}`);
     }
 
-    const asked = v.load(v.STORE, {});
+    // The panel's own message id lives in the same file; it is not a person.
+    const asked = Object.fromEntries(
+        Object.entries(v.load(v.STORE, {})).filter(([k]) => !k.startsWith("__")));
     const rated = Object.values(asked).filter((a) => a.rating);
     const average = rated.length
         ? (rated.reduce((t, a) => t + a.rating, 0) / rated.length).toFixed(2)
@@ -1215,6 +1235,7 @@ const HANDLERS = {
     top,
     winback,
     vouch,
+    vouchpanel,
     sync,
     health,
 };

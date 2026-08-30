@@ -96,6 +96,12 @@ new SlashCommandBuilder()
     .toJSON(),
 
   new SlashCommandBuilder()
+    .setName("vouchpanel")
+    .setDescription("Post the rating panel in the vouch channel")
+    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
+    .toJSON(),
+
+  new SlashCommandBuilder()
     .setName("vouch")
     .setDescription("Who would be asked to rate what they bought, and what has come back")
     .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)

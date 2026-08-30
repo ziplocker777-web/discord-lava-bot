@@ -41,6 +41,7 @@ const ACTIONS = {
     top: { label: "Best buyers", emoji: "🏆", style: ButtonStyle.Secondary, fields: [] },
     winback: { label: "Ask why", emoji: "💬", style: ButtonStyle.Secondary, fields: [] },
     vouch: { label: "Reviews", emoji: "⭐", style: ButtonStyle.Secondary, fields: [] },
+    vouchpanel: { label: "Post rating panel", emoji: "📌", style: ButtonStyle.Primary, fields: [] },
 
     customer: {
         label: "Look up", emoji: "🔍", style: ButtonStyle.Primary,
@@ -108,7 +109,8 @@ const ACTIONS = {
 const LAYOUT = [
     ["stats", "top", "abandoned", "pending"],
     ["health", "lapsed", "winback", "vouch"],
-    ["customer", "resend", "deliver", "grantrole", "sync"],
+    ["vouchpanel", "customer", "resend", "deliver"],
+    ["grantrole", "sync"],
     ["revokekey", "restorekey", "refund", "unrefund"],
 ];
 

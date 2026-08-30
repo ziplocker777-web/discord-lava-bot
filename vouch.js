@@ -142,6 +142,61 @@ async function candidates(client) {
     return out.sort((a, b) => a.since - b.since);
 }
 
+/**
+ * The panel that sits in the vouch channel.
+ *
+ * A standing invitation beats a message in everyone's DMs: nobody is
+ * interrupted, and the people who feel like saying something find it exactly
+ * where the other reviews are.
+ *
+ * It has to be the last message in the channel or nobody sees it, so it is
+ * moved down after every review rather than left to sink.
+ */
+function buildPanel() {
+    return {
+        content:
+            "**How's it going?**\n" +
+            "If you've bought something here, a rating takes five seconds and genuinely helps. " +
+            "Words are optional.\n\n" +
+            "_One rating per person. Yours will appear below._",
+        components: [new ActionRowBuilder().addComponents(
+            STARS.map((emoji, i) =>
+                new ButtonBuilder()
+                    .setCustomId(`vouch:${i + 1}`)
+                    .setEmoji(emoji)
+                    .setStyle(i + 1 >= 4 ? ButtonStyle.Success : ButtonStyle.Secondary))
+        )],
+    };
+}
+
+/**
+ * Put the panel at the bottom of the channel, removing the previous one.
+ *
+ * Deleted rather than edited, because an edited message stays where it was and
+ * the whole point is to be underneath the newest review.
+ */
+async function movePanel(client) {
+    const channelId = process.env.VOUCH_CHANNEL_ID;
+    if (!channelId) return null;
+
+    const channel = await client.channels.fetch(channelId);
+    const store = load(STORE, {});
+    const previous = store.__panel;
+
+    const sent = await channel.send(buildPanel());
+
+    if (previous) {
+        try {
+            const old = await channel.messages.fetch(previous);
+            await old.delete();
+        } catch { /* already gone, which is the state we wanted anyway */ }
+    }
+
+    store.__panel = sent.id;
+    save(store);
+    return sent.id;
+}
+
 function buildAsk(product) {
     return {
         content:
@@ -189,6 +244,28 @@ async function handleVouch(interaction, client) {
 
     // A star opens the box for words. Required false, so it can be sent empty.
     if (interaction.isButton()) {
+        const store = load(STORE, {});
+        const already = store[interaction.user.id];
+
+        if (already && already.rating) {
+            return interaction.reply({
+                content: `You've already left ${"⭐".repeat(already.rating)} — thank you. One each.`,
+                flags: 64,
+            }).then(() => true);
+        }
+
+        // The panel is public, so anybody can press it. A wall of reviews from
+        // people who never bought anything is worth less than an empty wall.
+        const owns = Object.values(load(WATERMARKS, {}))
+            .some((m) => String(m.discordId) === interaction.user.id);
+
+        if (!owns) {
+            return interaction.reply({
+                content: "This is for people who've bought something — you're not on the list yet.",
+                flags: 64,
+            }).then(() => true);
+        }
+
         const modal = new ModalBuilder()
             .setCustomId(`vouch:text:${part}`)
             .setTitle(`${part} out of 5 — anything to add?`)
@@ -208,6 +285,19 @@ async function handleVouch(interaction, client) {
 
     const store = load(STORE, {});
     const record = store[interaction.user.id] || {};
+
+    // Clicked from the channel rather than a DM, so the product was never
+    // established. Their newest purchase is the one they have most recently
+    // formed an opinion about.
+    if (!record.product) {
+        const marks = Object.values(load(WATERMARKS, {}))
+            .filter((m) => String(m.discordId) === interaction.user.id)
+            .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+        if (marks[0]) {
+            record.product = shownName(marks[0].productTitle);
+            record.email = marks[0].email;
+        }
+    }
     record.rating = rating;
     record.words = words;
     record.ratedAt = Date.now();
@@ -236,6 +326,9 @@ async function handleVouch(interaction, client) {
                 .setFooter({ text: record.product || "" })
                 .setTimestamp();
             await channel.send({ embeds: [embed] });
+
+            // Straight back to the bottom, under the review that just landed.
+            await movePanel(client).catch(() => {});
         } catch (err) {
             console.error("[vouch] could not post:", err.message);
             await notifyOwner(client, `**A review could not be posted** (${err.message})\n\n${stars} — ${words || "no words"}`);
@@ -275,4 +368,4 @@ function startVouch(client) {
     setInterval(run, EVERY_MS).unref?.();
 }
 
-module.exports = { startVouch, handleVouch, candidates, load, STORE };
+module.exports = { startVouch, handleVouch, candidates, movePanel, load, STORE };
