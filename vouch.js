@@ -91,19 +91,16 @@ function displayName(user) {
     return usable(user.globalName) || usable(user.username) || "A buyer";
 }
 
-/** The buyer-facing name: the raw subscription title is never shown to anyone. */
-function shownName(title) {
-    return title === "Subscription ziplocker" ? "your subscription" : title;
-}
-
 /**
- * Discord ids whose subscription has ended.
+ * What lava.top knows about each subscriber: whether it is still running, and
+ * which tier it is.
  *
- * Asking somebody to rate a subscription days after it lapsed is the worst
- * possible moment: the first name in the queue was the man whose key is being
- * taken back on Tuesday. One-off purchases do not expire and are not affected.
+ * Both come from the same sweep because both are needed for the same person.
+ * The tier has to come from here rather than from our own records: the offer
+ * name is on every invoice, while `tier` was added to purchaseStore later and
+ * only one of the eighteen subscription records carries it.
  */
-async function lapsedIds() {
+async function subInfo() {
     const rows = [];
     try {
         for (let page = 0; page < 20; page += 1) {
@@ -113,7 +110,7 @@ async function lapsedIds() {
             if (items.length < 100) break;
         }
     } catch {
-        return new Set();   // unreachable: better to ask nobody wrongly than to stop
+        return new Map();   // unreachable: better to ask nobody wrongly than to stop
     }
 
     const state = new Map();
@@ -121,22 +118,29 @@ async function lapsedIds() {
         if (!r.subscriptionStatus) continue;
         const id = String(r.clientUtm?.utm_content || "");
         if (!id) continue;
-        const e = state.get(id) || { live: false };
-        const expired = r.subscriptionDetails?.expiredAt
+        const e = state.get(id) || { live: false, offer: null };
+        const running = r.subscriptionDetails?.expiredAt
             ? Date.parse(r.subscriptionDetails.expiredAt) > Date.now()
             : r.subscriptionStatus === "ACTIVE";
-        if (expired) e.live = true;
+        if (running) e.live = true;
+        if (r.product?.offer) e.offer = r.product.offer;
         state.set(id, e);
     }
 
-    return new Set([...state.entries()].filter(([, v]) => !v.live).map(([id]) => id));
+    return state;
+}
+
+/** "Membership subscription", or the product's own name for anything else. */
+function labelFor(title, offer) {
+    if (title !== "Subscription ziplocker") return title;
+    return offer ? `${offer} subscription` : "subscription";
 }
 
 async function candidates(client) {
     const marks = load(WATERMARKS, {});
     const asked = load(STORE, {});
     const now = Date.now();
-    const lapsed = await lapsedIds();
+    const subs = await subInfo();
 
     let owner = null;
     try {
@@ -154,14 +158,22 @@ async function candidates(client) {
         if (picked.has(id)) continue;     // somebody with two products still gets one
 
         if (r.revoked) continue;          // their access was taken away
-        if (lapsed.has(id)) continue;     // subscription is over: wrong moment entirely
+
+        // A subscription that has ended is the worst possible moment to ask.
+        const sub = subs.get(id);
+        if (sub && !sub.live) continue;
 
         if (!r.activationCount) continue; // never got it working: not a reviewer
         const since = r.lastActivatedAt || r.createdAt;
         if (!since || now - since < AFTER_DAYS * 86400e3) continue;
 
         picked.add(id);
-        out.push({ discordId: id, email: r.email, product: shownName(r.productTitle), since });
+        out.push({
+            discordId: id,
+            email: r.email,
+            product: labelFor(r.productTitle, sub?.offer),
+            since,
+        });
     }
 
     // Longest-standing first: they have the most to say and are the least likely
@@ -342,7 +354,8 @@ async function handleVouch(interaction, client) {
             .filter((m) => String(m.discordId) === interaction.user.id)
             .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
         if (marks[0]) {
-            record.product = shownName(marks[0].productTitle);
+            const subs = await subInfo();
+            record.product = labelFor(marks[0].productTitle, subs.get(interaction.user.id)?.offer);
             record.email = marks[0].email;
         }
     }
