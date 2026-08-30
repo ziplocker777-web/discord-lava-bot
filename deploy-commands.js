@@ -78,6 +78,48 @@ const commands = [
     .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
 
 new SlashCommandBuilder()
+    .setName("customer")
+    .setDescription("Everything known about one buyer: purchases, key, activations, roles")
+    .addStringOption((option) =>
+      option
+        .setName("who")
+        .setDescription("Email, Discord id, or licence key")
+        .setRequired(true)
+    )
+    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
+    .toJSON(),
+
+  new SlashCommandBuilder()
+    .setName("revokekey")
+    .setDescription("Kill a licence key — their app drops back to the key screen")
+    .addStringOption((option) =>
+      option
+        .setName("who")
+        .setDescription("Licence key, email, or Discord id")
+        .setRequired(true)
+    )
+    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
+    .toJSON(),
+
+  new SlashCommandBuilder()
+    .setName("restorekey")
+    .setDescription("Bring a revoked licence key back")
+    .addStringOption((option) =>
+      option
+        .setName("who")
+        .setDescription("Licence key, email, or Discord id")
+        .setRequired(true)
+    )
+    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
+    .toJSON(),
+
+  new SlashCommandBuilder()
+    .setName("lapsed")
+    .setDescription("Subscriptions running, and which cancelled ones are still paid up")
+    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
+    .toJSON(),
+
+  new SlashCommandBuilder()
     .setName("aiusage")
     .setDescription("How many tokens the AI assistant has spent, and how many are left")
     .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)

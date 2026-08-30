@@ -187,8 +187,30 @@ function clearRevoked(discordId, productId) {
     return null;
 }
 
+/**
+ * Find keys by whatever the admin happens to have to hand.
+ *
+ * A licence key, an email, or a Discord id all identify the same person from
+ * different directions, and which one is available depends entirely on where the
+ * question came from -- a ticket has an email, a Discord report has an id, a
+ * leaked build has the key printed in it.
+ */
+function search(query) {
+    const db = load();
+    const q = String(query || "").trim().toLowerCase();
+    if (!q) return [];
+
+    return Object.entries(db)
+        .map(([token, record]) => ({ token, ...record }))
+        .filter((r) =>
+            String(r.licenseKey || "").toLowerCase() === q
+            || String(r.email || "").toLowerCase() === q
+            || String(r.discordId || "") === query.trim());
+}
+
 module.exports = {
     createWatermark,
+    search,
     getWatermark,
     markDownloaded,
     isValidToken,

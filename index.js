@@ -24,6 +24,7 @@ const tierBannerPath = (file) => path.join(__dirname, "assets", "tiers", file);
 const { startWebhookServer, revokeRole, WATERMARKED_PRODUCT_IDS } = require("./webhookServer.js");
 const { getAllPurchases, getPurchaseForProduct, recordPurchase } = require("./purchaseStore.js");
 const { isRefunded } = require("./refundedEmails.js");
+const { handleAdminCommand } = require("./adminCommands.js");
 const {
     registerAiSupport, handleQuestion, sendWithRetry, recordFeedback, usageSummary,
 } = require("./aiSupport.js");
@@ -282,6 +283,12 @@ async function refreshTierPrices() {
 client.on(Events.InteractionCreate, async (interaction) => {
 
     // ================= PANEL =================
+    // The admin tools live in their own file: index.js is long enough, and
+    // every one of these prints somebody's email, so they answer ephemerally.
+    if (interaction.isChatInputCommand() && await handleAdminCommand(interaction, client)) {
+        return;
+    }
+
     if (interaction.isChatInputCommand() && interaction.commandName === "panel") {
         const embed = new EmbedBuilder()
             .setColor("#ED4245")

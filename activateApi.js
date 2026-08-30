@@ -5,6 +5,11 @@ const { getPurchaseByLicenseKey, markActivated } = require("./watermarkStore");
 // This is a deterrent (raises the bar above "just redistribute the exe"), not a lock.
 const { notifyOwner } = require("./ownerNotify");
 
+// One message per key entry. Roughly the same volume as sales, and it confirms
+// the sale actually landed: somebody who paid and never activated could not
+// install it. Set NOTIFY_ACTIVATIONS=false in .env to stop them.
+const NOTIFY_ACTIVATIONS = process.env.NOTIFY_ACTIVATIONS !== "false";
+
 function registerActivateApi(app, discord) {
     app.post("/activate", (req, res) => {
         const { key } = req.body || {};
@@ -50,6 +55,18 @@ function registerActivateApi(app, discord) {
             `(${purchase.productTitle}) — ip: ${req.ip}, ` +
             `activation ${state.count}, distinct ips: ${state.ips.length}`
         );
+
+        if (discord && NOTIFY_ACTIVATIONS) {
+            // Not awaited, for the same reason as below: the app is waiting on
+            // this response and should not sit through a Discord round trip.
+            notifyOwner(discord,
+                `**Key activated** — ${purchase.productTitle || "unknown"}\n` +
+                `• ${purchase.email || "no email"}\n` +
+                `• <@${purchase.discordId}>\n` +
+                `• activation ${state.count}` +
+                (state.ips.length > 1 ? `, from ${state.ips.length} different addresses` : ""))
+                .catch(() => {});
+        }
 
         // Two addresses is a phone and a home connection, or an ISP handing out a
         // new one. Three separate places is where it stops looking like one
