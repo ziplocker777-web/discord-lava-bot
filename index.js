@@ -27,6 +27,7 @@ const { isRefunded } = require("./refundedEmails.js");
 const { handleAdminCommand } = require("./adminCommands.js");
 const { handlePanel } = require("./adminPanel.js");
 const { startWinback, handleWinback } = require("./winback.js");
+const { startVouch, handleVouch } = require("./vouch.js");
 const {
     registerAiSupport, handleQuestion, sendWithRetry, recordFeedback, usageSummary,
 } = require("./aiSupport.js");
@@ -261,6 +262,7 @@ client.once(Events.ClientReady, () => {
     console.log(`${client.user.tag} is online.`);
     startWebhookServer(client); // клиенту нужен доступ к guild/member для выдачи роли
     startWinback(client);       // молчит, пока в .env нет WINBACK=on
+    startVouch(client);         // молчит, пока в .env нет VOUCH=on
     refreshTierPrices();
     registerAiSupport(client, { Events });
 });
@@ -303,6 +305,12 @@ client.on(Events.InteractionCreate, async (interaction) => {
     // DMs, so they never collide with the admin panel's.
     if ((interaction.isButton() || interaction.isModalSubmit())
         && await handleWinback(interaction, client)) {
+        return;
+    }
+
+    // Buyers rating what they bought.
+    if ((interaction.isButton() || interaction.isModalSubmit())
+        && await handleVouch(interaction, client)) {
         return;
     }
 

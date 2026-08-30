@@ -1074,6 +1074,68 @@ async function top(interaction, client) {
     return interaction.editReply(lines.join("\n").slice(0, 1990));
 }
 
+/* ---------------------------------------------------------------- /vouch --- */
+
+/**
+ * Who would be asked to rate what they bought, and what has come back so far.
+ *
+ * Read-only, for the same reason /winback is: this messages real customers, so
+ * the list and the wording are worth looking at before either goes anywhere.
+ */
+async function vouch(interaction, client) {
+    const v = require("./vouch");
+
+    let people;
+    try {
+        people = await v.candidates(client);
+    } catch (err) {
+        return interaction.editReply(`Could not work out who to ask: ${err.message}`);
+    }
+
+    const asked = v.load(v.STORE, {});
+    const rated = Object.values(asked).filter((a) => a.rating);
+    const average = rated.length
+        ? (rated.reduce((t, a) => t + a.rating, 0) / rated.length).toFixed(2)
+        : null;
+
+    const on = process.env.VOUCH === "on";
+    const perSweep = process.env.VOUCH_PER_SWEEP || 5;
+
+    const lines = [
+        on
+            ? `**Asking is on** — ${perSweep} an hour.`
+            : "**Asking is off.** Put `VOUCH=on` in .env and restart to turn it on.",
+        "",
+        `**${people.length} could be asked** — everyone who activated over ` +
+        `${process.env.VOUCH_AFTER_DAYS || 3} days ago and has not been asked.`,
+    ];
+
+    for (const p of people.slice(0, 6)) {
+        lines.push(`• <@${p.discordId}> — ${p.product}`);
+    }
+    if (people.length > 6) lines.push(`… and ${people.length - 6} more`);
+
+    lines.push(
+        "",
+        `**Replies** — ${rated.length} of ${Object.keys(asked).length} asked` +
+        (average ? `, averaging **${average}★**` : ""));
+
+    for (const [id, a] of Object.entries(asked).filter(([, a]) => a.rating).slice(-4)) {
+        lines.push(`• ${"⭐".repeat(a.rating)} <@${id}> — ${(a.words || "no words").slice(0, 80)}`);
+    }
+
+    lines.push(
+        "",
+        "**They get one message, once, ever:**",
+        "> You've been using **<product>** for a few days now — how's it going?",
+        "> If you've got five seconds, a rating would genuinely help.",
+        "",
+        `_Five buttons, then an optional box for words. ${process.env.VOUCH_PUBLIC_MIN || 4}★ and up ` +
+        "go to the vouch channel; anything lower comes to you instead._");
+
+    return interaction.editReply(lines.join("\n").slice(0, 1990));
+}
+
 /* -------------------------------------------------------------- /winback --- */
 
 /**
@@ -1152,6 +1214,7 @@ const HANDLERS = {
     abandoned,
     top,
     winback,
+    vouch,
     sync,
     health,
 };

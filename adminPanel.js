@@ -40,6 +40,7 @@ const ACTIONS = {
     abandoned: { label: "Lost sales", emoji: "🛒", style: ButtonStyle.Secondary, fields: [] },
     top: { label: "Best buyers", emoji: "🏆", style: ButtonStyle.Secondary, fields: [] },
     winback: { label: "Ask why", emoji: "💬", style: ButtonStyle.Secondary, fields: [] },
+    vouch: { label: "Reviews", emoji: "⭐", style: ButtonStyle.Secondary, fields: [] },
 
     customer: {
         label: "Look up", emoji: "🔍", style: ButtonStyle.Primary,
@@ -106,7 +107,7 @@ const ACTIONS = {
 // on its own, where a misclick is least likely.
 const LAYOUT = [
     ["stats", "top", "abandoned", "pending"],
-    ["health", "lapsed", "winback"],
+    ["health", "lapsed", "winback", "vouch"],
     ["customer", "resend", "deliver", "grantrole", "sync"],
     ["revokekey", "restorekey", "refund", "unrefund"],
 ];
