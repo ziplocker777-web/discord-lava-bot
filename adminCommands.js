@@ -61,16 +61,43 @@ function input(interaction, name) {
     }
 }
 
-/** Every invoice lava.top holds for one buyer, whatever it was for. */
-async function invoicesFor(query) {
-    const rows = [];
+/**
+ * Every invoice lava.top will hand over.
+ *
+ * Paged the same way in five places before this existed, which is four chances
+ * for one of them to drift.
+ */
+/**
+ * The shop owner's own Discord id, so their test checkouts can be left out of
+ * anything that counts customers.
+ *
+ * Half the abandoned list was the owner testing the shop, which is the fastest
+ * way to make a report nobody reads. Asked of Discord rather than configured,
+ * because it is already the answer to "whose server is this".
+ */
+async function ownerId(client) {
+    try {
+        const guild = await client.guilds.fetch(process.env.GUILD_ID);
+        return String(guild.ownerId);
+    } catch {
+        return null;
+    }
+}
+
+async function allInvoices() {
+    const out = [];
     for (let page = 0; page < 20; page += 1) {
         const { data } = await lava.get("/invoices", { params: { page, size: 100 } });
         const items = data.items || [];
-        rows.push(...items);
+        out.push(...items);
         if (items.length < 100) break;
     }
+    return out;
+}
 
+/** Every invoice lava.top holds for one buyer, whatever it was for. */
+async function invoicesFor(query) {
+    const rows = await allInvoices();
     const q = query.toLowerCase();
     return rows.filter((r) =>
         String(r.buyer?.email || "").toLowerCase() === q
@@ -248,14 +275,9 @@ async function setKeyState(interaction, revoked) {
 
 async function lapsed(interaction) {
     const subs = [];
-    let rows = [];
+    let rows;
     try {
-        for (let page = 0; page < 20; page += 1) {
-            const { data } = await lava.get("/invoices", { params: { page, size: 100 } });
-            const items = data.items || [];
-            rows.push(...items);
-            if (items.length < 100) break;
-        }
+        rows = await allInvoices();
     } catch (err) {
         return interaction.editReply(`lava.top did not answer (${err.response?.status || err.message}).`);
     }
@@ -620,14 +642,9 @@ async function resend(interaction, client) {
 /* ----------------------------------------------------------------- /stats --- */
 
 async function stats(interaction) {
-    let rows = [];
+    let rows;
     try {
-        for (let page = 0; page < 20; page += 1) {
-            const { data } = await lava.get("/invoices", { params: { page, size: 100 } });
-            const items = data.items || [];
-            rows.push(...items);
-            if (items.length < 100) break;
-        }
+        rows = await allInvoices();
     } catch (err) {
         return interaction.editReply(`lava.top did not answer (${err.response?.status || err.message}).`);
     }
@@ -929,6 +946,134 @@ ${last.slice(-400)}
 
 /* ------------------------------------------------------------------------- */
 
+/* ------------------------------------------------------------ /abandoned --- */
+
+/**
+ * People who started paying and did not finish.
+ *
+ * Thirty-five of these sit in lava.top and thirty-four carry the Discord id of
+ * somebody already on the server -- so unlike almost any other lost sale, these
+ * can be asked about.
+ *
+ * The filtering is the whole job. A checkout that failed and was retried
+ * successfully leaves the failed attempt behind for ever, so the raw list has
+ * paying subscribers in it. Anyone who later bought the same product is not an
+ * abandoned sale, and a card that simply declined is not a change of mind.
+ */
+async function abandoned(interaction, client) {
+    const mine = client ? await ownerId(client) : null;
+    let rows;
+    try {
+        rows = await allInvoices();
+    } catch (err) {
+        return interaction.editReply(`lava.top did not answer (${err.response?.status || err.message}).`);
+    }
+
+    const done = new Set();
+    for (const r of rows) {
+        if (String(r.status).toUpperCase() !== "COMPLETED") continue;
+        done.add(`${String(r.buyer?.email || "").toLowerCase()}|${r.product?.name || ""}`);
+    }
+
+    const seen = new Set();
+    const lost = [];
+
+    for (const r of rows) {
+        const status = String(r.status).toUpperCase();
+        if (status === "COMPLETED" || status === "FAILED") continue;
+
+        // Your own test checkouts are not lost sales.
+        if (mine && String(r.clientUtm?.utm_content || "") === mine) continue;
+
+        const email = String(r.buyer?.email || "").toLowerCase();
+        const product = r.product?.name || "?";
+        const key = `${email}|${product}`;
+
+        if (done.has(key)) continue;
+        if (seen.has(key)) continue;
+        seen.add(key);
+
+        lost.push({
+            email,
+            product,
+            amount: r.receipt?.amount ?? r.amountTotal?.amount ?? 0,
+            currency: r.receipt?.currency ?? "",
+            at: r.datetime || r.created,
+            discordId: r.clientUtm?.utm_content || null,
+        });
+    }
+
+    if (lost.length === 0) {
+        return interaction.editReply("Nobody has an unfinished checkout they did not come back to.");
+    }
+
+    lost.sort((a, b) => String(b.at).localeCompare(String(a.at)));
+    const total = lost.reduce((t, l) => t + l.amount, 0);
+
+    const lines = [
+        `**${lost.length} unfinished checkout(s)** — ${total.toFixed(2)} USD that never arrived`,
+        "",
+    ];
+
+    for (const l of lost.slice(0, 12)) {
+        lines.push(
+            `• ${String(l.at).slice(0, 10)} — ${l.product} — ${l.amount} ${l.currency}`);
+        lines.push(`  ${l.discordId ? `<@${l.discordId}>` : "no Discord id"} · ${l.email}`);
+    }
+    if (lost.length > 12) lines.push(`… and ${lost.length - 12} more`);
+
+    lines.push("", "_Retries that later went through are already excluded._");
+
+    return interaction.editReply(lines.join("\n").slice(0, 1990));
+}
+
+/* ------------------------------------------------------------------ /top --- */
+
+/** Who spends the most, and how many of them come back. */
+async function top(interaction, client) {
+    const mine = client ? await ownerId(client) : null;
+    let rows;
+    try {
+        rows = await allInvoices();
+    } catch (err) {
+        return interaction.editReply(`lava.top did not answer (${err.response?.status || err.message}).`);
+    }
+
+    const refundedList = (() => {
+        try { return require("./refundedEmails.json"); } catch { return []; }
+    })();
+
+    const by = new Map();
+    for (const r of rows) {
+        if (String(r.status).toUpperCase() !== "COMPLETED") continue;
+        if (mine && String(r.clientUtm?.utm_content || "") === mine) continue;
+
+        const email = String(r.buyer?.email || "").toLowerCase();
+        if (!email || refundedList.includes(email)) continue;
+
+        const e = by.get(email) || { n: 0, spent: 0, id: null, last: "" };
+        e.n += 1;
+        // Net, to match /stats: the commission never reached you either.
+        e.spent += (r.receipt?.amount || 0) - (r.receipt?.fee || 0);
+        if (r.clientUtm?.utm_content) e.id = String(r.clientUtm.utm_content);
+        const at = String(r.datetime || r.created || "");
+        if (at > e.last) e.last = at;
+        by.set(email, e);
+    }
+
+    const ranked = [...by.entries()].sort((a, b) => b[1].spent - a[1].spent);
+    const repeat = ranked.filter(([, v]) => v.n > 1).length;
+
+    const lines = [`**${by.size} buyers**, ${repeat} of them more than once`, ""];
+
+    ranked.slice(0, 12).forEach(([email, v], i) => {
+        lines.push(`**${i + 1}.** ${v.spent.toFixed(2)} USD — ${v.n} purchase(s)`);
+        lines.push(`  ${v.id ? `<@${v.id}>` : email} · last ${v.last.slice(0, 10)}`);
+    });
+
+    return interaction.editReply(lines.join("\n").slice(0, 1990));
+}
+
 /** The button panel. Defined here so it lands in the same permission gate. */
 async function admin(interaction) {
     const { buildPanel } = require("./adminPanel");
@@ -948,6 +1093,8 @@ const HANDLERS = {
     stats,
     unrefund,
     pending,
+    abandoned,
+    top,
     sync,
     health,
 };

@@ -96,6 +96,18 @@ new SlashCommandBuilder()
     .toJSON(),
 
   new SlashCommandBuilder()
+    .setName("abandoned")
+    .setDescription("Checkouts started and never finished — with who to ask")
+    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
+    .toJSON(),
+
+  new SlashCommandBuilder()
+    .setName("top")
+    .setDescription("Who spends the most, and how many come back")
+    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
+    .toJSON(),
+
+  new SlashCommandBuilder()
     .setName("pending")
     .setDescription("Buyers who paid over a day ago and never activated their key")
     .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)

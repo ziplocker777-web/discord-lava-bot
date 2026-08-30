@@ -37,6 +37,9 @@ const ACTIONS = {
     pending: { label: "Never activated", emoji: "⏳", style: ButtonStyle.Secondary, fields: [] },
     lapsed: { label: "Subscriptions", emoji: "📉", style: ButtonStyle.Secondary, fields: [] },
 
+    abandoned: { label: "Lost sales", emoji: "🛒", style: ButtonStyle.Secondary, fields: [] },
+    top: { label: "Best buyers", emoji: "🏆", style: ButtonStyle.Secondary, fields: [] },
+
     customer: {
         label: "Look up", emoji: "🔍", style: ButtonStyle.Primary,
         title: "Look up a buyer",
@@ -101,8 +104,9 @@ const ACTIONS = {
 // person, and the ones that take something away. The dangerous row sits last and
 // on its own, where a misclick is least likely.
 const LAYOUT = [
-    ["stats", "health", "pending", "lapsed"],
-    ["customer", "resend", "deliver", "sync", "grantrole"],
+    ["stats", "top", "abandoned", "pending"],
+    ["health", "lapsed"],
+    ["customer", "resend", "deliver", "grantrole", "sync"],
     ["revokekey", "restorekey", "refund", "unrefund"],
 ];
 
