@@ -61,8 +61,32 @@ function getPurchaseForProduct(email, productId) {
     return list.find((p) => p.productId === productId) || null;
 }
 
+/**
+ * Note something about a purchase without losing the rest of it.
+ *
+ * recordPurchase REPLACES the record for a product, which is right for a
+ * payment -- the event carries everything -- and wrong for anything that only
+ * knows one fact. Marking a subscription cancelled through recordPurchase wiped
+ * `tier` along with it, and roles.js reads `tier` to tell Membership from
+ * Premium: a Premium subscriber who cancelled came back as Membership, and the
+ * wrong role would be granted or taken.
+ */
+function markStatus(email, productId, patch = {}) {
+    const db = load();
+    const key = email.toLowerCase();
+    const list = db[key] || [];
+
+    const idx = list.findIndex((p) => p.productId === productId);
+    if (idx >= 0) list[idx] = { ...list[idx], ...patch };
+    else list.push({ email, productId, ...patch, timestamp: Date.now() });
+
+    db[key] = list;
+    save(db);
+}
+
 module.exports = {
     recordPurchase,
+    markStatus,
     hasPurchase,
     getPurchase,
     getAllPurchases,

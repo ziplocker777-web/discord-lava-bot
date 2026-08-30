@@ -1,6 +1,6 @@
 require("dotenv").config();
 const express = require("express");
-const { recordPurchase, getPurchaseForProduct } = require("./purchaseStore");
+const { recordPurchase, markStatus, getPurchaseForProduct } = require("./purchaseStore");
 const {
     getRolesForPurchase,
     getRolesForProduct,
@@ -16,6 +16,10 @@ const { addRefund, removeRefund } = require("./refundedEmails");
 const { registerPresetsApi } = require("./presetsApi");
 const { registerActivateApi } = require("./activateApi");
 const KNOWN_PRODUCT_IDS = require("./products");
+
+// Sales are the only notification frequent enough to become wallpaper.
+// Set NOTIFY_SALES=false in .env to keep the rest without them.
+const NOTIFY_SALES = process.env.NOTIFY_SALES !== "false";
 
 // These products bundle the Muzzle Core Configurator (either as the product itself,
 // or as part of a graphics pack) and get an automatic watermarked download — everything
@@ -274,6 +278,16 @@ function startWebhookServer(client) {
                     }
                 }
 
+                if (NOTIFY_SALES) {
+                    const amount = event.amount ?? "";
+                    const currency = event.currency || "";
+                    await notifyOwner(client,
+                        `**Sale** — ${event.product?.title || "unknown"}` +
+                        `${tier ? ` (${tier.label})` : ""}\n` +
+                        `• ${email || "no email"}${amount ? ` — ${amount} ${currency}` : ""}` +
+                        `${discordId ? `\n• <@${discordId}>` : "\n• no discord id on the order"}`);
+                }
+
                 if (discordId) {
                     try {
                         await grantRole(client, discordId, event);
@@ -330,6 +344,18 @@ function startWebhookServer(client) {
                                 console.error(`DM delivery failed for ${discordId} (${event.product?.title}):`, dmErr.message);
                                 console.log(`  Download: ${downloadUrl}`);
                                 console.log(`  License key: ${licenseKey}`);
+
+                                // The worst failure this bot has: somebody paid and
+                                // received nothing, and until now the only trace was a
+                                // log line. Sent with the link and key attached so it
+                                // can be relayed by hand in one message.
+                                await notifyOwner(client,
+                                    `**Buyer did not get their download**\n\n` +
+                                    `• <@${discordId}> — ${event.product?.title || "unknown"}\n` +
+                                    `• ${email || "no email"}\n` +
+                                    `• reason: ${dmErr.message}\n\n` +
+                                    `Download: ${downloadUrl}\nLicense key: \`${licenseKey}\`\n\n` +
+                                    `Their DMs are most likely closed. Send this to them.`);
                             }
                         } else {
                             console.log(`Watermark already existed for ${discordId} (${event.product?.title}) — DM skipped.`);
@@ -385,6 +411,17 @@ function startWebhookServer(client) {
                     `Renewal payment attempt failed (not cancelling yet): ${event.eventType}, ` +
                     `buyer: ${event.buyer?.email || "?"}, errorMessage: ${event.errorMessage || "?"}`
                 );
+
+                // Worth knowing before it becomes a lapse: lava.top retries a
+                // couple of times, so there is a day or two here in which a word
+                // to the customer can save the subscription.
+                await notifyOwner(client,
+                    `**Renewal payment failed** — nothing taken away yet\n\n` +
+                    `• ${event.buyer?.email || "unknown"}\n` +
+                    `• reason: ${event.errorMessage || "not given"}\n\n` +
+                    `lava.top will retry. If every attempt fails, the role goes ` +
+                    `automatically and the key three days later.`);
+
                 return res.sendStatus(200);
             } else if (isFinalCancellationEvent(event)) {
                 console.log(`Subscription cancellation-like event received: ${event.eventType}`);
@@ -400,13 +437,13 @@ function startWebhookServer(client) {
                 }
 
                 if (email) {
-                    recordPurchase(email, {
-                        productId: event.product?.id,
+                    // Merged, not replaced: the tier lives on this record and
+                    // nothing else can work it out afterwards.
+                    markStatus(email, event.product?.id, {
                         productTitle: event.product?.title,
-                        contractId: event.contractId,
-                        timestamp: event.timestamp,
                         discordId,
                         status: "cancelled",
+                        cancelledAt: Date.now(),
                     });
                 }
 
@@ -428,6 +465,13 @@ function startWebhookServer(client) {
                     `Cancellation noted for ${email || "unknown"} — nothing revoked. ` +
                     "revoke-lapsed.js will act once the paid period is over."
                 );
+
+                await notifyOwner(client,
+                    `**Subscription cancelled**\n\n` +
+                    `• ${email || "unknown"}` +
+                    `${discordId ? `\n• <@${discordId}>` : ""}\n\n` +
+                    `Nothing taken away: they keep access until the period they have ` +
+                    `paid for runs out. It is removed automatically on that date.`);
 
                 return res.sendStatus(200);
             } else {
@@ -549,13 +593,11 @@ async function handleRefund(client, event) {
         addRefund(email.trim().toLowerCase());
         did.push("blocked from /getrole");
 
-        recordPurchase(email, {
-            productId,
+        markStatus(email, productId, {
             productTitle: event.product?.title,
-            contractId: event.contractId,
-            timestamp: event.timestamp,
             discordId,
             status: "refunded",
+            refundedAt: Date.now(),
         });
     }
 
