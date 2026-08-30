@@ -12,8 +12,8 @@
 
 const axios = require("axios");
 const { getAllPurchases, getPurchaseForProduct, recordPurchase } = require("./purchaseStore");
-const { getRolesForProduct, resolveTierWithLegacyFallback, tierDownloadsChannelId } = require("./roles");
-const { addRefund } = require("./refundedEmails");
+const { getRolesForProduct, resolveTierWithLegacyFallback, tierDownloadsChannelId, TIERS } = require("./roles");
+const { addRefund, removeRefund, isRefunded } = require("./refundedEmails");
 const { deliverPurchase, buildDeliveryMessage } = require("./delivery");
 const KNOWN_PRODUCT_IDS = require("./products");
 const { MessageFlags } = require("discord.js");
@@ -479,6 +479,182 @@ async function stats(interaction) {
     ].join("\n").slice(0, 1990));
 }
 
+/* -------------------------------------------------------------- /unrefund --- */
+
+/**
+ * Undo a refund.
+ *
+ * /refund is one command and one typo away from locking out a paying customer,
+ * and the block it sets is on the whole email rather than one product. Something
+ * that destructive needs a way back that does not involve an SSH session.
+ */
+async function unrefund(interaction, client) {
+    const email = interaction.options.getString("email").trim().toLowerCase();
+    const did = [];
+
+    if (removeRefund(email)) did.push("taken off the refund list");
+    else did.push("was not on the refund list");
+
+    for (const k of search(email)) {
+        if (!k.revoked) continue;
+        setRevoked(k.licenseKey, false);
+        did.push(`key \`${k.licenseKey}\` restored`);
+    }
+
+    return interaction.editReply(
+        `**Refund undone** for \`${email}\`\n` + did.map((d) => `• ${d}`).join("\n") +
+        `\n\nRoles are not put back automatically — use \`/grantrole\` if they need one.`);
+}
+
+/* --------------------------------------------------------------- /pending --- */
+
+/**
+ * Bought, and never activated.
+ *
+ * Everyone here paid and then, as far as the app is concerned, never got in.
+ * Some are sitting on an unopened download; some could not install it and
+ * quietly went away. Nothing else in the system surfaces them, and they are the
+ * cheapest customers to save because they have already paid.
+ */
+async function pending(interaction) {
+    const now = Date.now();
+    // Read straight from the store: search() answers about one person, and this
+    // question is about everybody.
+    const store = require("./watermarkStore.json");
+
+    const stale = Object.values(store)
+        .filter((k) => !k.activationCount && k.createdAt && now - k.createdAt > 24 * 3600e3)
+        .sort((a, b) => a.createdAt - b.createdAt);
+
+    if (stale.length === 0) {
+        return interaction.editReply("Everybody who bought more than a day ago has activated.");
+    }
+
+    const lines = [`**${stale.length} buyer(s) never activated**`, ""];
+    for (const k of stale.slice(0, 20)) {
+        const days = ((now - k.createdAt) / 86400e3).toFixed(0);
+        lines.push(
+            `• ${k.email || "no email"} — ${k.productTitle || "unknown"} — ${days}d ago` +
+            (k.downloaded ? "" : " — **never even downloaded**"));
+    }
+    if (stale.length > 20) lines.push(`… and ${stale.length - 20} more`);
+    lines.push("", "_`/resend` sends them their link and key again._");
+
+    return interaction.editReply(lines.join("\n").slice(0, 1990));
+}
+
+/* ----------------------------------------------------------------- /sync --- */
+
+/**
+ * Put back a role that should be there.
+ *
+ * Grants only. Taking a role away is the nightly sweep's job, and it has
+ * safeguards this does not -- the paid-until date, the exempt list, the check
+ * for a second live subscription. A repair tool that could also revoke would be
+ * a way to lose all of that in one command.
+ */
+async function sync(interaction, client) {
+    const email = interaction.options.getString("email").trim().toLowerCase();
+
+    let subs;
+    try {
+        subs = await subscriptionsFor(email);
+    } catch (err) {
+        return interaction.editReply(`lava.top did not answer (${err.response?.status || err.message}).`);
+    }
+
+    const now = Date.now();
+    const live = subs.filter((sv) =>
+        sv.expiredAt ? Date.parse(sv.expiredAt) > now : sv.status === "ACTIVE");
+
+    if (live.length === 0) {
+        return interaction.editReply(
+            `\`${email}\` has no running subscription on lava.top — nothing to put back.` +
+            (subs.length ? `\nFound ${subs.length} that have ended.` : ""));
+    }
+
+    const purchases = getAllPurchases(email) || [];
+    const discordId = purchases.find((p) => p.discordId)?.discordId;
+    if (!discordId) {
+        return interaction.editReply(
+            `\`${email}\` has a running subscription but no Discord id on file — ` +
+            `use \`/grantrole\` once you know who they are.`);
+    }
+
+    if (isRefunded(email)) {
+        return interaction.editReply(
+            `\`${email}\` is on the refund list. Clear it with \`/unrefund\` first if that is wrong.`);
+    }
+
+    const guild = await client.guilds.fetch(process.env.GUILD_ID);
+    const member = await guild.members.fetch({ user: discordId, force: true });
+
+    const given = [];
+    for (const sv of live) {
+        const tier = TIERS.find((t) => t.label.toLowerCase() === String(sv.offer || "").toLowerCase());
+        const roleId = tier && process.env[tier.roleEnv];
+        if (!roleId) continue;
+        if (member.roles.cache.has(roleId)) continue;
+        await member.roles.add(roleId);
+        given.push(tier.label);
+    }
+
+    const buyerRole = process.env.ROLE_ID;
+    if (buyerRole && !member.roles.cache.has(buyerRole)) {
+        await member.roles.add(buyerRole);
+        given.push("buyer");
+    }
+
+    return interaction.editReply(given.length
+        ? `✅ Gave <@${discordId}> back: **${given.join(", ")}**`
+        : `<@${discordId}> already has everything their subscription entitles them to.`);
+}
+
+/* --------------------------------------------------------------- /health --- */
+
+async function health(interaction) {
+    const { execSync } = require("child_process");
+    const store = require("./watermarkStore.json");
+    const lines = [];
+
+    const up = process.uptime();
+    const hrs = Math.floor(up / 3600);
+    const mins = Math.floor((up % 3600) / 60);
+    lines.push(`**Bot** — up ${hrs}h ${mins}m`);
+
+    let lava_ok = false;
+    try {
+        await lava.get("/invoices", { params: { page: 0, size: 1 } });
+        lava_ok = true;
+    } catch { /* reported below */ }
+    lines.push(`**lava.top** — ${lava_ok ? "answering" : "**not answering**"}`);
+
+    try {
+        const cron = execSync("crontab -l 2>/dev/null | grep -c revoke-lapsed").toString().trim();
+        lines.push(`**Nightly sweep** — ${cron === "0" ? "**not scheduled**" : "scheduled, 04:00"}`);
+    } catch {
+        lines.push("**Nightly sweep** — could not read crontab");
+    }
+
+    try {
+        const last = execSync("tail -3 /root/discord-lava-bot/revoke-cron.log 2>/dev/null").toString().trim();
+        lines.push(last ? `\`\`\`
+${last.slice(-400)}
+\`\`\`` : "_The sweep has not written a log yet — first run is tonight._");
+    } catch {
+        lines.push("_No sweep log yet._");
+    }
+
+    const keys = Object.values(store);
+    lines.push(
+        "",
+        `**Keys** — ${keys.length} issued, ${keys.filter((k) => k.revoked).length} revoked, ` +
+        `${keys.filter((k) => !k.activationCount).length} never activated`
+    );
+
+    return interaction.editReply(lines.join("\n").slice(0, 1990));
+}
+
 /* ------------------------------------------------------------------------- */
 
 const HANDLERS = {
@@ -490,6 +666,10 @@ const HANDLERS = {
     refund,
     resend,
     stats,
+    unrefund,
+    pending,
+    sync,
+    health,
 };
 
 /** @returns {Promise<boolean>} whether this interaction was one of ours */

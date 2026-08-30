@@ -78,6 +78,42 @@ const commands = [
     .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
 
 new SlashCommandBuilder()
+    .setName("unrefund")
+    .setDescription("Undo a refund: unblock the email and bring their key back")
+    .addStringOption((option) =>
+      option
+        .setName("email")
+        .setDescription("Email used at checkout")
+        .setRequired(true)
+    )
+    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
+    .toJSON(),
+
+  new SlashCommandBuilder()
+    .setName("pending")
+    .setDescription("Buyers who paid over a day ago and never activated their key")
+    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
+    .toJSON(),
+
+  new SlashCommandBuilder()
+    .setName("sync")
+    .setDescription("Put back a role that a running subscription should have")
+    .addStringOption((option) =>
+      option
+        .setName("email")
+        .setDescription("Email used at checkout")
+        .setRequired(true)
+    )
+    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
+    .toJSON(),
+
+  new SlashCommandBuilder()
+    .setName("health")
+    .setDescription("Is everything running: bot, lava.top, the nightly sweep, keys")
+    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
+    .toJSON(),
+
+  new SlashCommandBuilder()
     .setName("grantrole")
     .setDescription("Give somebody a role by hand — for a purchase the bot never saw")
     .addUserOption((option) =>
