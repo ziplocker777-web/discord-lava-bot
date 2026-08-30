@@ -55,6 +55,21 @@ const PUBLIC_MIN = Number(process.env.VOUCH_PUBLIC_MIN || 4);
 
 const EVERY_MS = 60 * 60 * 1000;
 
+const RULE = "─────────────────────────────";
+
+/**
+ * A word beside the stars.
+ *
+ * Five filled stars read as "five out of five" only after counting them. The
+ * word is understood before the counting starts, which is the whole job of the
+ * top line of a review.
+ */
+const VERDICT = { 5: "Excellent", 4: "Good", 3: "Okay", 2: "Poor", 1: "Bad" };
+
+// Gold for a review, so a wall of them reads as one thing at a glance.
+const GOLD = 0xF0B232;
+const WHITE = 0xFFFFFF;
+
 function load(file, fallback) {
     try { return JSON.parse(fs.readFileSync(file, "utf-8")); } catch { return fallback; }
 }
@@ -193,10 +208,13 @@ async function candidates(client) {
  */
 function buildPanel() {
     const embed = new EmbedBuilder()
-        .setColor(0xFFFFFF)
-        .setTitle("Leave a review")
+        .setColor(WHITE)
+        .setTitle("⭐  Leave a review")
         .setDescription(
-            "Bought something here? Rate it out of 5. You can add a few words if you want.");
+            `${RULE}\n` +
+            "Bought something here? Rate it out of 5.\n" +
+            "You can add a few words if you want.")
+        .setFooter({ text: "Reviews appear in this channel" });
 
     return {
         embeds: [embed],
@@ -369,18 +387,22 @@ async function handleVouch(interaction, client) {
         flags: 64,
     });
 
-    const stars = "⭐".repeat(rating) + "▫️".repeat(5 - rating);
+    const stars = "⭐".repeat(rating);
 
     if (rating >= PUBLIC_MIN && process.env.VOUCH_CHANNEL_ID) {
         try {
             const channel = await client.channels.fetch(process.env.VOUCH_CHANNEL_ID);
             const embed = new EmbedBuilder()
-                .setColor(0xFFFFFF)
-                .setAuthor({
-                    name: displayName(interaction.user),
-                    iconURL: interaction.user.displayAvatarURL(),
-                })
-                .setDescription(`${stars}\n\n${words ? `> ${words.replace(/\n/g, "\n> ")}` : "_No words, just the rating._"}`)
+                .setColor(GOLD)
+                .setAuthor({ name: displayName(interaction.user) })
+                // The avatar as a thumbnail rather than the author's tiny icon:
+                // a face at that size is the difference between a row of
+                // messages and a row of people.
+                .setThumbnail(interaction.user.displayAvatarURL({ size: 128 }))
+                .setTitle(`${stars}  ${VERDICT[rating] || ""}`.trim())
+                .setDescription(
+                    `${RULE}\n` +
+                    (words ? `> ${words.replace(/\n/g, "\n> ")}` : "_Rating only, no words._"))
                 .setFooter({ text: record.product || "" })
                 .setTimestamp();
             await channel.send({ embeds: [embed] });
@@ -426,4 +448,4 @@ function startVouch(client) {
     setInterval(run, EVERY_MS).unref?.();
 }
 
-module.exports = { startVouch, handleVouch, candidates, movePanel, load, STORE };
+module.exports = { startVouch, handleVouch, candidates, movePanel, displayName, load, STORE };
