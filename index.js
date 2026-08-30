@@ -24,7 +24,7 @@ const tierBannerPath = (file) => path.join(__dirname, "assets", "tiers", file);
 const { startWebhookServer, revokeRole, WATERMARKED_PRODUCT_IDS } = require("./webhookServer.js");
 const { getAllPurchases, getPurchaseForProduct, recordPurchase } = require("./purchaseStore.js");
 const { isRefunded } = require("./refundedEmails.js");
-const { handleAdminCommand } = require("./adminCommands.js");
+const { handleAdminCommand, warmMemberStats } = require("./adminCommands.js");
 const { handlePanel } = require("./adminPanel.js");
 const { startWinback, handleWinback } = require("./winback.js");
 const { startVouch, handleVouch } = require("./vouch.js");
@@ -263,6 +263,7 @@ client.once(Events.ClientReady, () => {
     startWebhookServer(client); // клиенту нужен доступ к guild/member для выдачи роли
     startWinback(client);       // молчит, пока в .env нет WINBACK=on
     startVouch(client);         // молчит, пока в .env нет VOUCH=on
+    warmMemberStats(client);    // чтобы /members отвечал сразу, а не через полминуты
     refreshTierPrices();
     registerAiSupport(client, { Events });
 });

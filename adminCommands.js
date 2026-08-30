@@ -1198,6 +1198,58 @@ async function joinLog(client) {
     return rows;
 }
 
+/**
+ * Which of the people who bought are still here.
+ *
+ * Checked one at a time, which is only affordable because there are sixty-odd
+ * of them; the eleven hundred who merely joined are counted by subtraction
+ * instead. Held with the join log, because a member fetch each is the slow part
+ * of this command.
+ */
+let goneCache = { at: 0, gone: [] };
+
+async function buyersWhoLeft(client, buyers) {
+    if (Date.now() - goneCache.at < 60 * 60 * 1000) return goneCache.gone;
+
+    const guild = await client.guilds.fetch(process.env.GUILD_ID);
+    const gone = [];
+
+    for (const id of buyers) {
+        try {
+            await guild.members.fetch({ user: id, force: false });
+        } catch {
+            gone.push(id);   // not on the server any more
+        }
+    }
+
+    goneCache = { at: Date.now(), gone };
+    return gone;
+}
+
+/** A day-by-day bar, scaled to its own busiest day. */
+function chart(rows, days) {
+    const now = Date.now();
+    const buckets = new Map();
+
+    for (let d = 0; d < days; d += 1) {
+        const day = new Date(now - d * 86400e3).toISOString().slice(0, 10);
+        buckets.set(day, 0);
+    }
+    for (const r of rows) {
+        const day = new Date(r.at).toISOString().slice(0, 10);
+        if (buckets.has(day)) buckets.set(day, buckets.get(day) + 1);
+    }
+
+    const entries = [...buckets.entries()].reverse();
+    const peak = Math.max(...entries.map(([, n]) => n), 1);
+
+    return entries.map(([day, n]) => {
+        const width = Math.round((n / peak) * 18);
+        const label = day.slice(5).replace("-", ".");
+        return `\u0060${label}\u0060 ${"\u2588".repeat(width) || "\u00b7"} ${n}`;
+    });
+}
+
 async function members(interaction, client) {
     const guild = await client.guilds.fetch(process.env.GUILD_ID);
 
@@ -1217,8 +1269,8 @@ async function members(interaction, client) {
     const now = Date.now();
     const since = (hours) => rows.filter((r) => now - r.at < hours * 3600e3).length;
 
-    // First arrival per person: somebody who left and came back is one person
-    // who has heard of the shop, not two.
+    // First arrival per person: somebody who left and came back has heard of the
+    // shop once, not twice.
     const first = new Map();
     for (const r of rows) {
         const prev = first.get(r.id);
@@ -1227,7 +1279,7 @@ async function members(interaction, client) {
 
     const oldest = Math.min(...rows.map((r) => r.at));
 
-    // Anyone who has ever been issued a key has bought something.
+    // Anyone ever issued a key has bought something.
     const marks = Object.values(require("./watermarkStore.json"));
     const buyers = new Map();
     for (const m of marks) {
@@ -1239,14 +1291,17 @@ async function members(interaction, client) {
 
     const converted = [...buyers.keys()].filter((id) => first.has(id));
 
-    // How long people take to decide, in days. The median rather than the mean:
-    // one person who bought a month later would drag an average anywhere.
+    // The median rather than the mean: one person who bought a month later would
+    // drag an average anywhere.
     const gaps = converted
         .map((id) => (buyers.get(id) - first.get(id)) / 86400e3)
         .filter((d) => d >= 0)
         .sort((a, b) => a - b);
     const median = gaps.length ? gaps[Math.floor(gaps.length / 2)] : null;
     const sameDay = gaps.filter((d) => d < 1).length;
+
+    const gone = await buyersWhoLeft(client, [...buyers.keys()]);
+    const leftAltogether = Math.max(first.size - guild.memberCount, 0);
 
     const lines = [
         "# Members",
@@ -1255,11 +1310,10 @@ async function members(interaction, client) {
         `• 7 days — ${since(24 * 7)}`,
         `• 30 days — ${since(24 * 30)}`,
         `• since ${new Date(oldest).toISOString().slice(0, 10)} — ${first.size} people` +
-        (rows.length > first.size ? ` (${rows.length - first.size} of them came back later)` : ""),
+        (rows.length > first.size ? ` (${rows.length - first.size} came back later)` : ""),
         "",
-        "### Now",
-        `${guild.memberCount} on the server — ` +
-        `${Math.max(first.size - guild.memberCount, 0)} of those who joined have gone`,
+        "### Last 14 days",
+        ...chart(rows, 14),
         "",
         "### Bought something",
         `${converted.length} of ${first.size} — **${(converted.length / first.size * 100).toFixed(1)}%**`,
@@ -1271,11 +1325,29 @@ async function members(interaction, client) {
             `${median < 1 ? "under a day" : `${Math.round(median)} day(s)`}`);
     }
 
+    lines.push(
+        "",
+        "### Left",
+        `${guild.memberCount} still here, ${leftAltogether} gone`,
+        `• ${gone.length} of them had bought something`,
+        `• ${Math.max(leftAltogether - gone.length, 0)} left without buying`);
+
+    if (gone.length) {
+        // Worth a name each: somebody who paid and then left is a different
+        // problem from somebody who looked around and did not stay.
+        const named = gone.slice(0, 8).map((id) => {
+            const mark = marks.find((m) => String(m.discordId) === id);
+            return `  ${mark?.email || id} — ${mark?.productTitle || "?"}`;
+        });
+        lines.push("", ...named);
+        if (gone.length > 8) lines.push(`  … and ${gone.length - 8} more`);
+    }
+
     if (buyers.size > converted.length) {
         lines.push(
             "",
             `-# ${buyers.size - converted.length} buyer(s) joined before the log ` +
-            "starts and are not counted above.");
+            "starts and are not in the percentage.");
     }
 
     return interaction.editReply(lines.join("\n").slice(0, 1990));
@@ -1373,6 +1445,37 @@ const HANDLERS = {
     health,
 };
 
+/**
+ * Fill the member caches before anybody asks for them.
+ *
+ * Cold, /members takes half a minute: fourteen pages of join history and a
+ * member lookup for every buyer, most of that spent waiting on rate limits.
+ * Warmed in the background it is instant, and half a minute of staring at
+ * "thinking..." is the difference between a report somebody checks and one they
+ * stop opening.
+ *
+ * Failures are ignored on purpose. This is a convenience; the command still
+ * works without it, just slowly.
+ */
+function warmMemberStats(client) {
+    const run = async () => {
+        try {
+            const rows = await joinLog(client);
+            const buyers = new Set(
+                Object.values(require("./watermarkStore.json"))
+                    .map((m) => String(m.discordId || ""))
+                    .filter(Boolean));
+            await buyersWhoLeft(client, [...buyers]);
+            console.log(`[members] ${rows.length} join(s) cached`);
+        } catch (err) {
+            console.warn("[members] could not warm the cache:", err.message);
+        }
+    };
+
+    setTimeout(run, 30_000);
+    setInterval(run, 55 * 60 * 1000).unref?.();
+}
+
 /** @returns {Promise<boolean>} whether this interaction was one of ours */
 async function handleAdminCommand(interaction, client) {
     const handler = HANDLERS[interaction.commandName];
@@ -1389,4 +1492,4 @@ async function handleAdminCommand(interaction, client) {
     return true;
 }
 
-module.exports = { handleAdminCommand, HANDLERS };
+module.exports = { handleAdminCommand, warmMemberStats, HANDLERS };
