@@ -108,9 +108,11 @@ const ACTIONS = {
 // on its own, where a misclick is least likely.
 const LAYOUT = [
     ["stats", "top", "abandoned", "pending"],
-    ["health", "lapsed", "winback", "vouch"],
-    ["vouchpanel", "customer", "resend", "deliver"],
-    ["grantrole", "sync"],
+    // The rating panel sits with the reviews it belongs to, not with the things
+    // done to one person. It is a repair button: the panel places itself after
+    // every review, so this is only for putting one back.
+    ["health", "lapsed", "winback", "vouch", "vouchpanel"],
+    ["customer", "resend", "deliver", "grantrole", "sync"],
     ["revokekey", "restorekey", "refund", "unrefund"],
 ];
 
