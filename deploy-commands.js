@@ -78,6 +78,73 @@ const commands = [
     .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
 
 new SlashCommandBuilder()
+    .setName("grantrole")
+    .setDescription("Give somebody a role by hand — for a purchase the bot never saw")
+    .addUserOption((option) =>
+      option.setName("user").setDescription("Who").setRequired(true)
+    )
+    .addStringOption((option) =>
+      option
+        .setName("role")
+        .setDescription("Which role")
+        .setRequired(true)
+        .addChoices(
+          { name: "buyer", value: "ROLE_ID" },
+          { name: "Basic", value: "BASIC_ROLE_ID" },
+          { name: "Membership", value: "SUBSCRIBE_ROLE_ID" },
+          { name: "Premium", value: "PREMIUM_ROLE_ID" }
+        )
+    )
+    .addStringOption((option) =>
+      option
+        .setName("email")
+        .setDescription("Optional — records it so the nightly sweep never takes it back")
+    )
+    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
+    .toJSON(),
+
+  new SlashCommandBuilder()
+    .setName("refund")
+    .setDescription("Undo a sale: role off, key revoked, blocked from claiming it again")
+    .addStringOption((option) =>
+      option
+        .setName("email")
+        .setDescription("Email used at checkout")
+        .setRequired(true)
+    )
+    .addStringOption((option) =>
+      option
+        .setName("product")
+        .setDescription("Only needed when they own more than one thing")
+        .addChoices(
+          ...Object.keys(require("./products")).map((name) => ({
+            name: name.slice(0, 100),
+            value: name,
+          }))
+        )
+    )
+    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
+    .toJSON(),
+
+  new SlashCommandBuilder()
+    .setName("resend")
+    .setDescription("Send a buyer their download link and key again")
+    .addStringOption((option) =>
+      option
+        .setName("who")
+        .setDescription("Email, Discord id, or licence key")
+        .setRequired(true)
+    )
+    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
+    .toJSON(),
+
+  new SlashCommandBuilder()
+    .setName("stats")
+    .setDescription("Sales for the last day and week, and how many subscriptions are running")
+    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
+    .toJSON(),
+
+  new SlashCommandBuilder()
     .setName("customer")
     .setDescription("Everything known about one buyer: purchases, key, activations, roles")
     .addStringOption((option) =>
