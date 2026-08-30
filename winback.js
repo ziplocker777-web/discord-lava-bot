@@ -76,10 +76,28 @@ async function allInvoices() {
  * Same filtering as the /abandoned report, plus the two time limits and the
  * record of who has already been asked.
  */
+/**
+ * The line before which nobody is asked, drawn the first time anybody looks.
+ *
+ * Somebody who gave up a week ago has forgotten this shop exists, and a message
+ * about it reads as strange rather than helpful. The backlog is therefore left
+ * alone for good: only people who walk away from a checkout from here onwards
+ * are ever asked about it.
+ */
+function startLine() {
+    const store = load();
+    if (!store.__since) {
+        store.__since = Date.now();
+        save(store);
+    }
+    return store.__since;
+}
+
 async function candidates(client) {
     const rows = await allInvoices();
     const asked = load();
     const now = Date.now();
+    const since = startLine();
 
     let owner = null;
     try {
@@ -109,6 +127,7 @@ async function candidates(client) {
 
         // Once per person, not once per abandoned checkout: somebody who tried
         // three products in one evening gets one message, not three.
+        if (discordId.startsWith("__")) continue;
         if (asked[discordId]) continue;
 
         const email = String(r.buyer?.email || "").toLowerCase();
@@ -124,6 +143,8 @@ async function candidates(client) {
 
         const at = Date.parse(r.datetime || r.created || "");
         if (!Number.isFinite(at)) continue;
+
+        if (at < since) continue;                       // the backlog is not ours to reopen
 
         const hours = (now - at) / 3600e3;
         if (hours < AFTER_HOURS) continue;              // give it time to finish
@@ -256,4 +277,4 @@ function startWinback(client) {
     setInterval(run, EVERY_MS).unref?.();
 }
 
-module.exports = { startWinback, handleWinback, candidates, ask, load };
+module.exports = { startWinback, handleWinback, candidates, ask, load, startLine };

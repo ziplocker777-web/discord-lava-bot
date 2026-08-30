@@ -1166,7 +1166,7 @@ async function vouch(interaction, client) {
  * afterwards, rather than discovering both at once in somebody's DMs.
  */
 async function winback(interaction, client) {
-    const { candidates, load } = require("./winback");
+    const { candidates, load, startLine } = require("./winback");
 
     let people;
     try {
@@ -1175,7 +1175,9 @@ async function winback(interaction, client) {
         return interaction.editReply(`lava.top did not answer (${err.response?.status || err.message}).`);
     }
 
-    const asked = load();
+    const since = startLine();
+    const asked = Object.fromEntries(
+        Object.entries(load()).filter(([k]) => !k.startsWith("__")));
     const answers = Object.entries(asked).filter(([, v]) => v.answered);
 
     const on = process.env.WINBACK === "on";
@@ -1185,6 +1187,11 @@ async function winback(interaction, client) {
             : "**Asking is off.** Put `WINBACK=on` in .env and restart to turn it on.",
         "",
     ];
+
+    lines.push(
+        `_Only checkouts abandoned after ${new Date(since).toISOString().slice(0, 16).replace("T", " ")} ` +
+        "are ever asked about — anybody who gave up before that has forgotten this shop exists._",
+        "");
 
     if (people.length === 0) {
         lines.push("_Nobody is waiting to be asked right now._");
