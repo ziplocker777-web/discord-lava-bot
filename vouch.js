@@ -3,9 +3,9 @@ require("./env.js").loadEnv();
 /**
  * Asks buyers who actually used the thing to rate it, and posts what they say.
  *
- * The vouch channel is empty because nobody thinks to write in it unasked. Fifty
- * six people have had a working install for more than three days and not one has
- * been asked what they think.
+ * Fourteen people had written one unprompted before any of this existed, which
+ * is fourteen out of several hundred. Fifty six more have had a working install
+ * for over three days and have never been asked what they think.
  *
  * Asked of people who ACTIVATED, not people who paid. Somebody who bought it and
  * never got it working has an opinion, but it is not a review -- it is a support
@@ -24,7 +24,9 @@ require("./env.js").loadEnv();
 const fs = require("fs");
 const path = require("path");
 const {
-    ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder,
+    ActionRowBuilder, ButtonBuilder, ButtonStyle,
+    ContainerBuilder, SectionBuilder, SeparatorBuilder, SeparatorSpacingSize,
+    TextDisplayBuilder, ThumbnailBuilder, MessageFlags,
     ModalBuilder, TextInputBuilder, TextInputStyle,
 } = require("discord.js");
 const axios = require("axios");
@@ -54,8 +56,6 @@ const PER_SWEEP = Number(process.env.VOUCH_PER_SWEEP || 5);
 const PUBLIC_MIN = Number(process.env.VOUCH_PUBLIC_MIN || 4);
 
 const EVERY_MS = 60 * 60 * 1000;
-
-const RULE = "─────────────────────────────";
 
 /**
  * A word beside the stars.
@@ -197,6 +197,47 @@ async function candidates(client) {
 }
 
 /**
+ * One posted review.
+ *
+ * Built with Discord's own container rather than an embed, for the divider: a
+ * line drawn out of ─ characters is a fixed width in a place that is not, so it
+ * wrapped on phones. The real separator is drawn by Discord at whatever width
+ * the reader has.
+ *
+ * The stars sit in a heading because that is the only way to make them bigger.
+ * Emoji take the size of the text around them, and in an embed that size is
+ * fixed no matter which field they are in.
+ */
+function buildReview(user, rating, words, product, at) {
+    const stars = "⭐".repeat(rating);
+
+    const container = new ContainerBuilder()
+        .setAccentColor(GOLD)
+        .addSectionComponents(
+            new SectionBuilder()
+                .addTextDisplayComponents(
+                    new TextDisplayBuilder().setContent(`**${displayName(user)}**`),
+                    new TextDisplayBuilder().setContent(
+                        `## ${stars}  ${VERDICT[rating] || ""}`.trimEnd()))
+                // A face at this size is the difference between a row of
+                // messages and a row of people.
+                .setThumbnailAccessory(
+                    new ThumbnailBuilder().setURL(user.displayAvatarURL({ size: 128 }))))
+        .addSeparatorComponents(
+            new SeparatorBuilder()
+                .setDivider(true)
+                .setSpacing(SeparatorSpacingSize.Small))
+        .addTextDisplayComponents(
+            new TextDisplayBuilder().setContent(
+                words ? `> ${words.replace(/\n/g, "\n> ")}` : "_Rating only, no words._"))
+        .addTextDisplayComponents(
+            new TextDisplayBuilder().setContent(
+                `-# ${product || ""} · <t:${Math.floor((at || Date.now()) / 1000)}:R>`));
+
+    return { components: [container], flags: MessageFlags.IsComponentsV2 };
+}
+
+/**
  * The panel that sits in the vouch channel.
  *
  * A standing invitation beats a message in everyone's DMs: nobody is
@@ -207,25 +248,28 @@ async function candidates(client) {
  * moved down after every review rather than left to sink.
  */
 function buildPanel() {
-    const embed = new EmbedBuilder()
-        .setColor(WHITE)
-        .setTitle("⭐  Leave a review")
-        .setDescription(
-            `${RULE}\n` +
-            "Bought something here? Rate it out of 5.\n" +
-            "You can add a few words if you want.")
-        .setFooter({ text: "Reviews appear in this channel" });
+    const container = new ContainerBuilder()
+        .setAccentColor(WHITE)
+        .addTextDisplayComponents(
+            new TextDisplayBuilder().setContent("## ⭐  Leave a review"))
+        .addSeparatorComponents(
+            new SeparatorBuilder()
+                .setDivider(true)
+                .setSpacing(SeparatorSpacingSize.Small))
+        .addTextDisplayComponents(
+            new TextDisplayBuilder().setContent(
+                "Bought something here? Rate it out of 5.\n" +
+                "You can add a few words if you want.\n" +
+                "-# Reviews appear in this channel."))
+        .addActionRowComponents(
+            new ActionRowBuilder().addComponents(
+                new ButtonBuilder()
+                    .setCustomId("vouch:open")
+                    .setLabel("Write a review")
+                    .setEmoji("✍️")
+                    .setStyle(ButtonStyle.Success)));
 
-    return {
-        embeds: [embed],
-        components: [new ActionRowBuilder().addComponents(
-            new ButtonBuilder()
-                .setCustomId("vouch:open")
-                .setLabel("Write a review")
-                .setEmoji("✍️")
-                .setStyle(ButtonStyle.Success)
-        )],
-    };
+    return { components: [container], flags: MessageFlags.IsComponentsV2 };
 }
 
 /**
@@ -392,20 +436,7 @@ async function handleVouch(interaction, client) {
     if (rating >= PUBLIC_MIN && process.env.VOUCH_CHANNEL_ID) {
         try {
             const channel = await client.channels.fetch(process.env.VOUCH_CHANNEL_ID);
-            const embed = new EmbedBuilder()
-                .setColor(GOLD)
-                .setAuthor({ name: displayName(interaction.user) })
-                // The avatar as a thumbnail rather than the author's tiny icon:
-                // a face at that size is the difference between a row of
-                // messages and a row of people.
-                .setThumbnail(interaction.user.displayAvatarURL({ size: 128 }))
-                .setTitle(`${stars}  ${VERDICT[rating] || ""}`.trim())
-                .setDescription(
-                    `${RULE}\n` +
-                    (words ? `> ${words.replace(/\n/g, "\n> ")}` : "_Rating only, no words._"))
-                .setFooter({ text: record.product || "" })
-                .setTimestamp();
-            await channel.send({ embeds: [embed] });
+            await channel.send(buildReview(interaction.user, rating, words, record.product));
 
             // Straight back to the bottom, under the review that just landed.
             await movePanel(client).catch(() => {});
@@ -448,4 +479,6 @@ function startVouch(client) {
     setInterval(run, EVERY_MS).unref?.();
 }
 
-module.exports = { startVouch, handleVouch, candidates, movePanel, displayName, load, STORE };
+module.exports = {
+    startVouch, handleVouch, candidates, movePanel, buildReview, displayName, load, STORE,
+};
