@@ -96,6 +96,12 @@ new SlashCommandBuilder()
     .toJSON(),
 
   new SlashCommandBuilder()
+    .setName("winback")
+    .setDescription("Who would be asked why they did not finish, and what they would be sent")
+    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
+    .toJSON(),
+
+  new SlashCommandBuilder()
     .setName("abandoned")
     .setDescription("Checkouts started and never finished — with who to ask")
     .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)

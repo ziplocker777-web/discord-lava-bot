@@ -1074,6 +1074,62 @@ async function top(interaction, client) {
     return interaction.editReply(lines.join("\n").slice(0, 1990));
 }
 
+/* -------------------------------------------------------------- /winback --- */
+
+/**
+ * Who would be asked why they did not finish, and what they would be sent.
+ *
+ * Read-only on purpose. The sweep messages real customers unprompted, so the
+ * sensible order is to look at the list and the wording first and turn it on
+ * afterwards, rather than discovering both at once in somebody's DMs.
+ */
+async function winback(interaction, client) {
+    const { candidates, load } = require("./winback");
+
+    let people;
+    try {
+        people = await candidates(client);
+    } catch (err) {
+        return interaction.editReply(`lava.top did not answer (${err.response?.status || err.message}).`);
+    }
+
+    const asked = load();
+    const answers = Object.entries(asked).filter(([, v]) => v.answered);
+
+    const on = process.env.WINBACK === "on";
+    const lines = [
+        on
+            ? `**Asking is on** — every hour, ${process.env.WINBACK_AFTER_HOURS || 3}h after a checkout stalls.`
+            : "**Asking is off.** Put `WINBACK=on` in .env and restart to turn it on.",
+        "",
+    ];
+
+    if (people.length === 0) {
+        lines.push("_Nobody is waiting to be asked right now._");
+    } else {
+        lines.push(`**${people.length} would be asked:**`);
+        for (const p of people.slice(0, 10)) {
+            lines.push(`• <@${p.discordId}> — ${p.product} — ${new Date(p.at).toISOString().slice(0, 10)}`);
+        }
+    }
+
+    lines.push("", `**Already asked** — ${Object.keys(asked).length}, of whom ${answers.length} replied`);
+    for (const [id, v] of answers.slice(-5)) {
+        lines.push(`• <@${id}> — ${String(v.answered).slice(0, 120)}`);
+    }
+
+    lines.push(
+        "",
+        "**They get one message, once, ever:**",
+        "> Hey — you started getting **<product>** a little while ago and it didn't go through.",
+        "> This isn't a sales pitch and there's nothing to click to buy. If something got in the way",
+        "> I'd just like to know what, because it's probably getting in somebody else's way too.",
+        "",
+        "_With four buttons: payment failed · too expensive · changed my mind · something else._");
+
+    return interaction.editReply(lines.join("\n").slice(0, 1990));
+}
+
 /** The button panel. Defined here so it lands in the same permission gate. */
 async function admin(interaction) {
     const { buildPanel } = require("./adminPanel");
@@ -1095,6 +1151,7 @@ const HANDLERS = {
     pending,
     abandoned,
     top,
+    winback,
     sync,
     health,
 };

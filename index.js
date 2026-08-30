@@ -26,6 +26,7 @@ const { getAllPurchases, getPurchaseForProduct, recordPurchase } = require("./pu
 const { isRefunded } = require("./refundedEmails.js");
 const { handleAdminCommand } = require("./adminCommands.js");
 const { handlePanel } = require("./adminPanel.js");
+const { startWinback, handleWinback } = require("./winback.js");
 const {
     registerAiSupport, handleQuestion, sendWithRetry, recordFeedback, usageSummary,
 } = require("./aiSupport.js");
@@ -259,6 +260,7 @@ async function verifyPurchaseAndDeliver(interaction, email) {
 client.once(Events.ClientReady, () => {
     console.log(`${client.user.tag} is online.`);
     startWebhookServer(client); // клиенту нужен доступ к guild/member для выдачи роли
+    startWinback(client);       // молчит, пока в .env нет WINBACK=on
     refreshTierPrices();
     registerAiSupport(client, { Events });
 });
@@ -294,6 +296,13 @@ client.on(Events.InteractionCreate, async (interaction) => {
     // owns its own custom ids and nothing further down should see them.
     if ((interaction.isButton() || interaction.isModalSubmit())
         && await handlePanel(interaction, client)) {
+        return;
+    }
+
+    // Buyers answering why they did not finish. Their own buttons, in their own
+    // DMs, so they never collide with the admin panel's.
+    if ((interaction.isButton() || interaction.isModalSubmit())
+        && await handleWinback(interaction, client)) {
         return;
     }
 
