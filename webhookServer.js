@@ -410,15 +410,24 @@ function startWebhookServer(client) {
                     });
                 }
 
-                if (discordId) {
-                    try {
-                        await revokeRole(client, discordId, event);
-                    } catch (err) {
-                        console.error("Role revoke failed inside Discord:", err.message);
-                    }
-                } else {
-                    console.warn("Cancellation webhook without a resolvable discordId — Membership role not revoked automatically.");
-                }
+                // Nothing is taken away here, on purpose.
+                //
+                // Cancelling is not the same as running out. lava.top keeps a
+                // cancelled subscription ACTIVE until its paid period ends and
+                // records that date as expiredAt -- three of them are sitting
+                // there right now, cancelled in August and paid through into
+                // September. This event carries no such date, so acting on it
+                // would take the role on the day somebody pressed cancel and
+                // charge them a month for nothing.
+                //
+                // revoke-lapsed.js reads the API, which does know, and takes the
+                // role when the paid period is actually over. The cost is up to a
+                // day's delay for a subscription that ended immediately; the
+                // alternative costs a month of somebody's money.
+                console.log(
+                    `Cancellation noted for ${email || "unknown"} — nothing revoked. ` +
+                    "revoke-lapsed.js will act once the paid period is over."
+                );
 
                 return res.sendStatus(200);
             } else {

@@ -92,6 +92,7 @@ function subscriptions(invoices) {
             discordId: null,
             status: null,
             terminatedAt: null,
+            expiredAt: null,
             offer: null,
             last: null,
         };
@@ -105,9 +106,22 @@ function subscriptions(invoices) {
         if (row.subscriptionStatus === "ACTIVE") entry.status = "ACTIVE";
         else if (entry.status !== "ACTIVE") entry.status = row.subscriptionStatus;
 
-        const terminated = row.subscriptionDetails?.terminatedAt
-            || row.subscriptionDetails?.cancelledAt;
-        if (terminated) entry.terminatedAt = terminated;
+        // The three dates are not interchangeable, and the difference decides
+        // whether someone keeps what they paid for:
+        //
+        //   terminatedAt   killed now, because the money stopped
+        //   expiredAt      cancelled, but paid up until this date
+        //   cancelledAt    when they pressed cancel, which is neither
+        //
+        // Somebody who cancels on the 9th with expiredAt on the 8th of next month
+        // has a month of access left. Reading cancelledAt as the end -- as this
+        // did -- would take it away from them on the day they cancelled.
+        if (row.subscriptionDetails?.terminatedAt) {
+            entry.terminatedAt = row.subscriptionDetails.terminatedAt;
+        }
+        if (row.subscriptionDetails?.expiredAt) {
+            entry.expiredAt = row.subscriptionDetails.expiredAt;
+        }
 
         const when = row.datetime || row.created;
         if (when && (!entry.last || when > entry.last)) entry.last = when;
@@ -226,11 +240,32 @@ function record(entries) {
     }
 
     const subs = subscriptions(invoices);
-    const active = new Set(subs.filter((s) => s.status === "ACTIVE" && s.discordId)
+    const now = Date.now();
+
+    /**
+     * Is this subscription over?
+     *
+     * Two ways for it to be, and one of them lava.top still calls ACTIVE: a
+     * cancelled subscription keeps that status until its paid period runs out,
+     * so the date has to be read rather than the label.
+     */
+    const lapsed = (s) => {
+        if (s.expiredAt) {
+            const ends = Date.parse(s.expiredAt);
+            return Number.isFinite(ends) && ends < now;
+        }
+        return s.status === "FAILED";
+    };
+
+    for (const s of subs) s.lapsed = lapsed(s);
+
+    // Built from what is really still running, not from the label: an expired
+    // subscription that still reads ACTIVE must not shield its owner from this.
+    const active = new Set(subs.filter((s) => !s.lapsed && s.discordId)
         .map((s) => s.discordId));
 
     console.log(`${invoices.length} invoice(s), ${subs.length} subscription(s): ` +
-        `${active.size} active, ${subs.filter((s) => s.status === "FAILED").length} failed\n`);
+        `${active.size} still running, ${subs.filter((s) => s.lapsed).length} over\n`);
 
     const targets = [];
 
@@ -245,7 +280,7 @@ function record(entries) {
     };
 
     for (const sub of subs) {
-        if (sub.status !== "FAILED") continue;
+        if (!sub.lapsed) continue;
 
         if (!sub.discordId) {
             note("?  no discord id on the invoice:", sub.email || sub.id);
@@ -323,7 +358,10 @@ function record(entries) {
                 // on an earlier run: they lapse together but are taken separately,
                 // and the key is the one that outlives everything.
                 let key = null;
-                const ended = Date.parse(sub.terminatedAt || sub.last || "");
+                // Counted from when access actually ended, which for a cancelled
+                // subscription is the end of the paid period and not the day the
+                // cancel button was pressed.
+                const ended = Date.parse(sub.terminatedAt || sub.expiredAt || sub.last || "");
                 const daysSince = Number.isFinite(ended) ? (now - ended) / 86400000 : 0;
 
                 const record = findByOwner(sub.discordId, SUBSCRIPTION_PRODUCT_ID);
@@ -349,7 +387,7 @@ function record(entries) {
                 const what = [p.holdsRole ? `role ${p.tier}` : null, p.key ? `key ${p.key}` : null]
                     .filter(Boolean).join(" + ");
                 console.log(`  ${p.sub.email}  discord ${p.sub.discordId}  ${what}` +
-                    `  ended ${String(p.sub.terminatedAt || p.sub.last).slice(0, 10)}`);
+                    `  ended ${String(p.sub.terminatedAt || p.sub.expiredAt || p.sub.last).slice(0, 10)}`);
             }
 
             if (!APPLY) {
@@ -387,7 +425,7 @@ function record(entries) {
                         roleId,
                         role: roleGone,
                         key: keyGone,
-                        terminatedAt: sub.terminatedAt || sub.last,
+                        terminatedAt: sub.terminatedAt || sub.expiredAt || sub.last,
                         reason: "subscription terminated upstream",
                     });
                 }
