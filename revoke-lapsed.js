@@ -146,10 +146,14 @@ async function notify(client, done) {
     if (done.length === 0) return;
 
     const lines = done.map((d) =>
-        `• ${d.email} — ${d.tier}, подписка прекращена ${String(d.terminatedAt).slice(0, 10)}`);
+        `• ${d.email} — ${d.tier}, ended ${String(d.terminatedAt).slice(0, 10)}`);
 
-    let body = `**Сняты роли за неоплату** — ${done.length}\n\n${lines.join("\n")}`;
-    if (body.length > 1900) body = `${body.slice(0, 1900)}\n… и ещё несколько, полный список в revokeLog.json`;
+    const heading = done.length === 1
+        ? "**Role revoked — subscription ended**"
+        : `**Roles revoked — subscriptions ended** (${done.length})`;
+
+    let body = `${heading}\n\n${lines.join("\n")}`;
+    if (body.length > 1900) body = `${body.slice(0, 1900)}\n… and more — the full list is in revokeLog.json`;
 
     try {
         const channelId = process.env.REVOKE_NOTIFY_CHANNEL_ID;
