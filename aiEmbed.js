@@ -2,11 +2,18 @@
  * How an AI support reply looks in Discord.
  *
  * Split out from aiSupport.js because presentation now has its own weight —
- * embed, buttons, wording, colours — and none of it has anything to do with
+ * layout, buttons, wording, colours — and none of it has anything to do with
  * asking the model a question. It also means both entry points, the help channel
  * and /ask, build their reply from exactly the same place: a customer seeing a
  * different-looking answer depending on how they asked is the kind of thing
  * nobody reports and everybody notices.
+ *
+ * Built as a container rather than an embed, matching the reviews. That is what
+ * makes Discord's own separator available — a rule drawn out of characters is a
+ * fixed width in a place that is not one, and wraps on a phone — and it lets the
+ * asker's avatar sit in the layout instead of being shrunk into the corner of an
+ * author line. Headings work inside a container too, so the label can be a
+ * heading rather than bold text pretending to be one.
  *
  * All customer-facing text here is English, deliberately. The ANSWER follows the
  * language of the question — that is the model's job, driven by the system
@@ -14,10 +21,16 @@
  */
 
 const {
-    EmbedBuilder,
     ActionRowBuilder,
     ButtonBuilder,
     ButtonStyle,
+    ContainerBuilder,
+    MessageFlags,
+    SectionBuilder,
+    SeparatorBuilder,
+    SeparatorSpacingSize,
+    TextDisplayBuilder,
+    ThumbnailBuilder,
 } = require("discord.js");
 
 const LOOK = {
@@ -26,16 +39,16 @@ const LOOK = {
         // White for anything a customer reads as an answer. The two states that
         // are the bot talking about itself keep a tint, because those are worth
         // spotting at a glance while scrolling a channel.
-        answer: "#FFFFFF",
-        no_answer: "#FFFFFF",
-        notice: "#FAA61A",
-        error: "#ED4245",
+        answer: 0xFFFFFF,
+        no_answer: 0xFFFFFF,
+        notice: 0xFAA61A,
+        error: 0xED4245,
     },
     // Discord's own caps, minus room for the ellipsis. Answers are capped at
-    // MAX_TOKENS long before the description limit, so that guard is for the day
-    // someone raises MAX_TOKENS and forgets this exists.
+    // MAX_TOKENS long before this, so the guard is for the day someone raises
+    // MAX_TOKENS and forgets this exists.
     maxQuestion: 300,
-    maxDescription: 4000,
+    maxAnswer: 3800,
     labels: {
         helpful: "\u{1F44D} Helpful",
         notHelpful: "\u{1F44E} Not helpful",
@@ -65,57 +78,16 @@ function ticketUrl() {
 }
 
 /**
- * The reply itself.
- *
- * Layout, top to bottom: who asked (avatar and name), that this came from the
- * assistant, the question, then the answer. The question sits in Discord's
- * subtext style — it is context for the answer, not a competing headline, and in
- * /ask it is the only thing telling you what was asked at all, since an
- * ephemeral reply arrives with nothing around it.
- */
-function buildAnswerEmbed({ kind, text, question, user }) {
-    const answered = kind === "answer" || kind === "no_answer";
-
-    const body = answered && question
-        ? `-# ${clip(question, LOOK.maxQuestion)}\n\n${text}`
-        : text;
-
-    const embed = new EmbedBuilder()
-        .setColor(LOOK.colour[kind] || LOOK.colour.answer)
-        .setDescription(clip(body, LOOK.maxDescription))
-        .setTimestamp();
-
-    // The asker's avatar and name. This is the only place in an embed where a
-    // face fits without competing with the answer, and it is what makes a reply
-    // in a busy channel obviously belong to someone.
-    if (user) {
-        embed.setAuthor({
-            name: user.username,
-            iconURL: user.displayAvatarURL ? user.displayAvatarURL() : undefined,
-        });
-    }
-
-    // A notice is the bot talking about itself — a rate limit, a wall of text, a
-    // failure. Titling that "AI Answer" would be claiming it answered something.
-    if (answered) embed.setTitle(LOOK.title);
-
-    return embed;
-}
-
-/**
- * Buttons under the reply.
+ * The buttons.
  *
  * The two votes are the point: supportLog.json already records what the FAQ
  * could not answer, and this adds the half that is currently invisible —
  * questions it DID answer, badly. Those are the ones nobody complains about and
  * nobody comes back from.
- *
- * Returns an empty array when there is nothing worth offering, which Discord
- * treats as "no components" without complaint.
  */
-function buildAnswerComponents({ kind, logId }) {
+function feedbackRow({ kind, logId }) {
     const answered = kind === "answer" || kind === "no_answer";
-    if (!answered || !logId) return [];
+    if (!answered || !logId) return null;
 
     const row = new ActionRowBuilder().addComponents(
         new ButtonBuilder()
@@ -141,7 +113,55 @@ function buildAnswerComponents({ kind, logId }) {
         );
     }
 
-    return [row];
+    return row;
+}
+
+/**
+ * The whole reply, ready to hand to reply() or editReply().
+ *
+ * Top to bottom: who asked, that this came from the assistant, what they asked,
+ * the line, then the answer. The question sits above the rule as context and the
+ * answer below it as the payload — in /ask it is also the only thing saying what
+ * was asked at all, since an ephemeral reply arrives with nothing around it.
+ */
+function buildAnswer({ kind, text, question, user, logId }) {
+    const answered = kind === "answer" || kind === "no_answer";
+    const container = new ContainerBuilder()
+        .setAccentColor(LOOK.colour[kind] ?? LOOK.colour.answer);
+
+    if (answered) {
+        const header = new SectionBuilder().addTextDisplayComponents(
+            new TextDisplayBuilder().setContent(`**${user?.username || "Someone"}**`),
+            new TextDisplayBuilder().setContent(`## ${LOOK.title}`),
+        );
+
+        if (question) {
+            header.addTextDisplayComponents(
+                new TextDisplayBuilder().setContent(`-# ${clip(question, LOOK.maxQuestion)}`));
+        }
+
+        // The avatar belongs in the layout rather than shrunk into a corner: it
+        // is what makes a reply in a busy channel obviously belong to someone.
+        const avatar = user?.displayAvatarURL?.({ size: 128 });
+        if (avatar) header.setThumbnailAccessory(new ThumbnailBuilder().setURL(avatar));
+
+        container
+            .addSectionComponents(header)
+            .addSeparatorComponents(
+                new SeparatorBuilder()
+                    .setDivider(true)
+                    .setSpacing(SeparatorSpacingSize.Small));
+    }
+
+    container.addTextDisplayComponents(
+        new TextDisplayBuilder().setContent(clip(text, LOOK.maxAnswer)));
+
+    // A notice is the bot talking about itself — a rate limit, a wall of text, a
+    // failure. It gets no heading and no buttons: there is nothing to rate.
+    const row = feedbackRow({ kind, logId });
+    if (row) container.addActionRowComponents(row);
+
+    return { components: [container], flags: MessageFlags.IsComponentsV2 };
 }
 
 /** `ai_fb:up:1a2b3c4d` -> { vote: "up", logId: "1a2b3c4d" }, or null. */
@@ -153,8 +173,7 @@ function parseFeedbackId(customId) {
 }
 
 module.exports = {
-    buildAnswerEmbed,
-    buildAnswerComponents,
+    buildAnswer,
     parseFeedbackId,
     ticketUrl,
     LOOK,

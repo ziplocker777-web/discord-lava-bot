@@ -4,7 +4,7 @@ const fs = require("fs");
 const path = require("path");
 const Anthropic = require("@anthropic-ai/sdk").default;
 const { selectFaq } = require("./faqSelect.js");
-const { buildAnswerEmbed, buildAnswerComponents } = require("./aiEmbed.js");
+const { buildAnswer } = require("./aiEmbed.js");
 const { fetchAllPrices } = require("./lavaClient.js");
 
 // The answers themselves live in faq.md, not here. That file is also what gets
@@ -692,20 +692,14 @@ function registerAiSupport(discordClient, { Events }) {
             });
             if (!result) return;
 
-            const embed = buildAnswerEmbed({
+            const reply = buildAnswer({
                 kind: result.kind,
                 text: result.text,
                 question: result.question,
                 user: message.author,
-            });
-            const components = buildAnswerComponents({
-                kind: result.kind,
                 logId: result.logId,
             });
-            await sendWithRetry(
-                () => message.reply({ embeds: [embed], components }),
-                "channel reply"
-            );
+            await sendWithRetry(() => message.reply(reply), "channel reply");
         } catch (err) {
             console.error("[ai] could not reply in Discord:", err.message);
         }

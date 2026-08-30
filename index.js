@@ -32,7 +32,7 @@ const {
     registerAiSupport, handleQuestion, sendWithRetry, recordFeedback, usageSummary,
 } = require("./aiSupport.js");
 const {
-    buildAnswerEmbed, buildAnswerComponents, parseFeedbackId,
+    buildAnswer, parseFeedbackId,
 } = require("./aiEmbed.js");
 const { buildDirectoryEmbeds } = require("./modDirectory.js");
 const { createInvoice, cancelSubscription, findCompletedSaleByEmail, fetchOfferPrices } = require("./lavaClient.js");
@@ -1138,22 +1138,19 @@ Membership gets you everything that exists. Premium decides what exists next —
             });
         }
 
-        // Same embed as the help channel, so /ask and the channel look identical.
-        const embed = buildAnswerEmbed({
+        // The same reply as the help channel, so /ask and the channel look
+        // identical. The container flag is accepted on an edit, which is what a
+        // deferred reply amounts to -- checked against Discord before relying on
+        // it, because a rejected flag here would break /ask silently.
+        const reply = buildAnswer({
             kind: result.kind,
             text: result.text,
             question: result.question,
             user: interaction.user,
-        });
-        const components = buildAnswerComponents({
-            kind: result.kind,
             logId: result.logId,
         });
 
-        return sendWithRetry(
-            () => interaction.editReply({ embeds: [embed], components }),
-            "/ask reply"
-        );
+        return sendWithRetry(() => interaction.editReply(reply), "/ask reply");
     }
 
     // ================= GET ROLE PANEL (manual fallback) =================
