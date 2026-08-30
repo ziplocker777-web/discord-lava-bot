@@ -113,7 +113,25 @@ function checkApiKey(req, res, next) {
     const stamp = new Date().toISOString();
 
     if (!key) {
-        console.warn(`[webhook] REJECTED 401 (missing key) — ip: ${req.ip}, time: ${stamp}`);
+        // Something has been posting here hourly for months and being turned
+        // away, and nginx shows it arriving with HTTP basic auth as
+        // "lava_webhook_ziplocker" while the deliveries that DO work carry no
+        // basic auth and an X-Api-Key instead. That is two senders, so the
+        // rejected one has to be identified rather than assumed harmless: if it
+        // is carrying real events, they have been thrown away all along.
+        let seen = "no body";
+        try {
+            if (req.body && Object.keys(req.body).length) {
+                seen = JSON.stringify(req.body).slice(0, 600);
+            }
+        } catch {
+            seen = "unreadable body";
+        }
+        console.warn(
+            `[webhook] REJECTED 401 (missing key) — ip: ${req.ip}, time: ${stamp}, ` +
+            `auth: ${req.header("authorization") ? "basic" : "none"}, ` +
+            `ua: ${req.header("user-agent") || "-"}, body: ${seen}`
+        );
         return res.status(401).send("Missing API Key");
     }
 
@@ -127,6 +145,15 @@ function checkApiKey(req, res, next) {
 
 function startWebhookServer(client) {
     const app = express();
+
+    // nginx sits in front, behind Cloudflare, and both pass the caller along in
+    // X-Forwarded-For. Without this Express reads the socket instead and every
+    // request in the world is logged as 127.0.0.1 -- which is why the hourly
+    // keyless hits on this endpoint looked local and could not be told apart
+    // from each other, or from a scanner.
+    //
+    // Diagnostics only: nothing is authorised by address, the API key does that.
+    app.set("trust proxy", true);
     app.use(express.json());
 
     // express.json() кидает ошибку синхронно ДО того, как запрос доходит до
