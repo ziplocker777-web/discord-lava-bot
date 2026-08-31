@@ -750,6 +750,15 @@ async function stats(interaction) {
         "",
         `_Gross was ${gross(paid)}; lava.top's cut and ${refundedHere} known refund(s) are already off._`,
         "",
+        "### Last 14 days",
+        ...chart(
+            paid,
+            14,
+            (r) => Date.parse(r.datetime || r.created || ""),
+            // Net, to match the totals above: the commission never arrived either.
+            (r) => (r.receipt?.amount || 0) - (r.receipt?.fee || 0),
+            (n) => (n ? n.toFixed(2) : "\u2014")),
+        "",
         `### Subscriptions\n${live.length} running` +
         (recurring ? ` — ${recurring.toFixed(2)} USD a month before commission` : ""),
         "",
@@ -1226,28 +1235,45 @@ async function buyersWhoLeft(client, buyers) {
     return gone;
 }
 
-/** A day-by-day bar, scaled to its own busiest day. */
-function chart(rows, days) {
+/**
+ * A day-by-day bar, scaled to its own busiest day.
+ *
+ * Wrapped in a code block, which is the whole point: proportional text puts a
+ * different width on every date and number, so the bars began at a different
+ * column on each row and the thing fell apart on a phone. Monospace lines them
+ * up, and a code block scrolls sideways rather than wrapping.
+ *
+ * Fourteen blocks at most, so a row fits a narrow screen without scrolling at
+ * all.
+ *
+ * @param {(row: object) => number} when   the row's timestamp
+ * @param {(row: object) => number} weigh  what the row contributes to its day
+ * @param {(total: number) => string} label what to print after the bar
+ */
+function chart(rows, days, when, weigh = () => 1, label = (n) => String(n)) {
     const now = Date.now();
     const buckets = new Map();
 
     for (let d = 0; d < days; d += 1) {
-        const day = new Date(now - d * 86400e3).toISOString().slice(0, 10);
-        buckets.set(day, 0);
+        buckets.set(new Date(now - d * 86400e3).toISOString().slice(0, 10), 0);
     }
     for (const r of rows) {
-        const day = new Date(r.at).toISOString().slice(0, 10);
-        if (buckets.has(day)) buckets.set(day, buckets.get(day) + 1);
+        const at = when(r);
+        if (!Number.isFinite(at)) continue;
+        const day = new Date(at).toISOString().slice(0, 10);
+        if (buckets.has(day)) buckets.set(day, buckets.get(day) + weigh(r));
     }
 
     const entries = [...buckets.entries()].reverse();
     const peak = Math.max(...entries.map(([, n]) => n), 1);
 
-    return entries.map(([day, n]) => {
-        const width = Math.round((n / peak) * 18);
-        const label = day.slice(5).replace("-", ".");
-        return `\u0060${label}\u0060 ${"\u2588".repeat(width) || "\u00b7"} ${n}`;
+    const lines = entries.map(([day, n]) => {
+        const width = Math.round((n / peak) * 14);
+        const bar = "\u2588".repeat(width) || "\u00b7";
+        return `${day.slice(5).replace("-", ".")} ${bar.padEnd(14)} ${label(n)}`;
     });
+
+    return ["```", ...lines, "```"];
 }
 
 async function members(interaction, client) {
@@ -1313,7 +1339,7 @@ async function members(interaction, client) {
         (rows.length > first.size ? ` (${rows.length - first.size} came back later)` : ""),
         "",
         "### Last 14 days",
-        ...chart(rows, 14),
+        ...chart(rows, 14, (r) => r.at),
         "",
         "### Bought something",
         `${converted.length} of ${first.size} — **${(converted.length / first.size * 100).toFixed(1)}%**`,

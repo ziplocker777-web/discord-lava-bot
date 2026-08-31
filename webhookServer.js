@@ -44,7 +44,12 @@ const SUCCESS_EVENT_TYPES = [
     "purchase.success",
     "subscription.created",
     "subscription.active",
-    "subscription.renewed"
+    "subscription.renewed",
+    // The real renewal, seen 2026-08-31. It had been tested with a hand-made
+    // payload carrying status "completed" and arrived carrying
+    // "subscription-active", which the exact-match below did not recognise --
+    // so the first genuine renewal this shop ever received was ignored.
+    "subscription.recurring.payment.success",
 ];
 
 // Реальная, финальная отмена подписки — тут роль действительно снимаем.
@@ -100,11 +105,28 @@ function isPaymentSuccessEvent(event) {
     // Прямое совпадение по типу события
     if (SUCCESS_EVENT_TYPES.includes(type)) return true;
 
-    // Резервная проверка: если в событии есть payment/invoice/purchase/subscription И статус указывает на успешную оплату
-    const isPaymentType = type.includes("payment") || type.includes("invoice") || type.includes("purchase") || type.includes("subscription");
-    const isSuccessStatus = status === "completed" || status === "success" || status === "paid" || status === "active";
+    // Резервная проверка. Матчим по вхождению, а не по точному равенству:
+    //
+    // lava.top qualifies its statuses with the thing they belong to, so the same
+    // outcome arrives as "completed" on one event and "subscription-active" on
+    // another. Exact matching caught the first and missed the second, and every
+    // status this gateway has ever sent follows that shape -- "subscription-failed"
+    // for the failure, "subscription-active" for the success.
+    //
+    // Failure and cancellation words are excluded explicitly, so a future
+    // "subscription-payment-failed" cannot be read as a success on the strength
+    // of containing "payment".
+    const isPaymentType = type.includes("payment") || type.includes("invoice")
+        || type.includes("purchase") || type.includes("subscription");
 
-    return isPaymentType && isSuccessStatus;
+    const looksBad = status.includes("fail") || status.includes("cancel")
+        || status.includes("refund") || status.includes("charge_back")
+        || status.includes("chargeback") || status.includes("expired");
+
+    const looksGood = status.includes("completed") || status.includes("success")
+        || status.includes("paid") || status.includes("active");
+
+    return isPaymentType && looksGood && !looksBad;
 }
 
 function isFinalCancellationEvent(event) {
