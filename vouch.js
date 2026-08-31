@@ -546,13 +546,6 @@ async function handleVouch(interaction, client) {
         const store = load(STORE, {});
         const already = store[interaction.user.id];
 
-        if (already && already.rating) {
-            return interaction.reply({
-                content: `You've already left ${"⭐".repeat(already.rating)} — thank you. One each.`,
-                flags: 64,
-            }).then(() => true);
-        }
-
         // The panel is public, so anybody can press it. A wall of reviews from
         // people who never bought anything is worth less than an empty wall.
         const owns = Object.values(load(WATERMARKS, {}))
@@ -565,9 +558,16 @@ async function handleVouch(interaction, client) {
             }).then(() => true);
         }
 
+        // Somebody who has rated before is changing their mind, not leaving a
+        // second review. Their old one is replaced in the channel rather than
+        // added to -- so the wall stays one review per person, and a complaint
+        // about something that has since been fixed does not sit on the average
+        // for ever.
+        const again = Boolean(already && already.rating);
+
         const modal = new ModalBuilder()
             .setCustomId("vouch:submit")
-            .setTitle("Leave a review")
+            .setTitle(again ? "Change your review" : "Leave a review")
             .addComponents(
                 new ActionRowBuilder().addComponents(
                     new TextInputBuilder()
@@ -674,18 +674,64 @@ async function handleVouch(interaction, client) {
 
     const stars = "⭐".repeat(rating);
 
-    if (rating >= PUBLIC_MIN && process.env.VOUCH_CHANNEL_ID) {
-        try {
-            const channel = await client.channels.fetch(process.env.VOUCH_CHANNEL_ID);
-            await channel.send(buildReview(interaction.user, rating, words, record.product));
+    /**
+     * One review per person, kept current.
+     *
+     * The message id is remembered, so changing a rating edits what is already
+     * in the channel rather than adding a second review under the same name.
+     * Four cases, and all four have to be handled or the wall stops matching the
+     * average printed on the shop panels:
+     *
+     *   still public     -> edit it where it is
+     *   newly public     -> post it, and bring the panel back to the bottom
+     *   no longer public -> take it down, and tell the owner why it went
+     *   still private    -> there was never anything there
+     *
+     * An edit deliberately does not move the panel: an edit is not a new review
+     * arriving, and dragging the panel down every time somebody fixes a typo
+     * would be noise for everyone watching the channel.
+     */
+    if (process.env.VOUCH_CHANNEL_ID) {
+        const channel = await client.channels.fetch(process.env.VOUCH_CHANNEL_ID).catch(() => null);
+        const body = buildReview(interaction.user, rating, words, record.product);
 
-            // Straight back to the bottom, under the review that just landed.
-            await movePanel(client).catch(() => {});
-        } catch (err) {
-            console.error("[vouch] could not post:", err.message);
-            await notifyOwner(client, `**A review could not be posted** (${err.message})\n\n${stars} — ${words || "no words"}`);
+        if (channel) {
+            const existing = record.messageId
+                ? await channel.messages.fetch(record.messageId).catch(() => null)
+                : null;
+
+            try {
+                if (rating >= PUBLIC_MIN && existing) {
+                    await existing.edit(body);
+                } else if (rating >= PUBLIC_MIN) {
+                    const sent = await channel.send(body);
+                    record.messageId = sent.id;
+                    store[interaction.user.id] = record;
+                    save(store);
+
+                    // Straight back to the bottom, under the review that just landed.
+                    await movePanel(client).catch(() => {});
+                } else if (existing) {
+                    await existing.delete();
+                    record.messageId = null;
+                    store[interaction.user.id] = record;
+                    save(store);
+
+                    await notifyOwner(client,
+                        `**A review was lowered and taken down**\n\n`
+                        + `${stars} \u2014 ${record.product || "unknown"}\n`
+                        + `\u2022 <@${interaction.user.id}> \u00b7 ${record.email || "no email"}\n\n`
+                        + (words ? `> ${words.slice(0, 900)}` : "_No words._"));
+                    return true;
+                }
+            } catch (err) {
+                console.error("[vouch] could not publish:", err.message);
+                await notifyOwner(client,
+                    `**A review could not be posted** (${err.message})\n\n${stars} \u2014 ${words || "no words"}`);
+            }
         }
-        return true;
+
+        if (rating >= PUBLIC_MIN) return true;
     }
 
     await notifyOwner(client,
