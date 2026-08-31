@@ -14,6 +14,9 @@ const axios = require("axios");
 const { getAllPurchases, getPurchaseForProduct, recordPurchase } = require("./purchaseStore");
 const { getRolesForProduct, resolveTierWithLegacyFallback, tierDownloadsChannelId, TIERS } = require("./roles");
 const { addRefund, removeRefund, isRefunded } = require("./refundedEmails");
+const {
+    addRefundedInvoice, removeRefundedInvoice, isRefundedInvoice,
+} = require("./refundedInvoices");
 const { deliverPurchase, buildDeliveryMessage } = require("./delivery");
 const KNOWN_PRODUCT_IDS = require("./products");
 const { MessageFlags } = require("discord.js");
@@ -71,13 +74,9 @@ const refundedEmailList = () => {
     try { return require("./refundedEmails.json"); } catch { return []; }
 };
 
-const refundedInvoiceIds = () => {
-    try { return require("./refundedInvoices.json").map((r) => r.id); } catch { return []; }
-};
-
 const wasRefunded = (r) =>
     refundedEmailList().includes(String(r.buyer?.email || "").toLowerCase())
-    || refundedInvoiceIds().includes(r.id);
+    || isRefundedInvoice(r);
 
 const when = (t) => (t ? new Date(t).toISOString().replace("T", " ").slice(0, 16) : "—");
 
@@ -488,6 +487,33 @@ async function refund(interaction, client) {
     addRefund(email);
     did.push("blocked from /getrole and the redownload panel");
 
+    // Write down WHICH payment came back, not just whose it was.
+    //
+    // lava.top leaves a refunded sale reading COMPLETED for ever and has no API
+    // that admits a refund happened, so unless this is recorded here the money
+    // keeps being counted as takings. Three refunds went unrecorded that way and
+    // put the totals $18.39 over until the payout page was read by hand.
+    try {
+        const invoice = (await allInvoices()).find((r) =>
+            String(r.status).toUpperCase() === "COMPLETED"
+            && String(r.buyer?.email || "").toLowerCase() === email
+            && r.product?.name === (purchase.productTitle || ""));
+
+        if (addRefundedInvoice({
+            id: invoice?.id,
+            email,
+            what: purchase.productTitle,
+            amount: invoice?.receipt?.amount,
+            why: "refund",
+        })) {
+            did.push(invoice
+                ? `taken out of the takings (${(invoice.receipt?.amount ?? 0).toFixed(2)} USD)`
+                : "taken out of the takings (no matching invoice found — matched by product)");
+        }
+    } catch (err) {
+        did.push(`could NOT take it out of the takings: ${err.message}`);
+    }
+
     recordPurchase(email, { ...purchase, status: "refunded", refundedAt: Date.now() });
 
     const keys = search(email).filter((k) => k.productId === purchase.productId);
@@ -883,6 +909,7 @@ async function unrefund(interaction, client) {
     const did = [];
 
     if (removeRefund(email)) did.push("taken off the refund list");
+    if (removeRefundedInvoice({ email })) did.push("counted as takings again");
 
     for (const k of search(email)) {
         if (!k.revoked) continue;

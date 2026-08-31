@@ -2,6 +2,7 @@ require("dotenv").config();
 const express = require("express");
 const { recordPurchase, markStatus, getPurchaseForProduct } = require("./purchaseStore");
 const { checkCollector } = require("./collector");
+const { addRefundedInvoice } = require("./refundedInvoices");
 const {
     getRolesForPurchase,
     getRolesForProduct,
@@ -685,10 +686,30 @@ async function handleChargeback(client, event) {
     const amount = event.amount ?? event.receipt?.amount;
     const currency = event.currency || event.receipt?.currency || "";
 
+    // Recorded for the accounts, and only for the accounts.
+    //
+    // Access is deliberately left alone: a chargeback can be a stolen card, a
+    // confused bank, or somebody's parent, and taking a paying customer's
+    // purchase away on that signal alone is a mistake this shop has chosen not
+    // to make automatically. But the money genuinely did leave the account, and
+    // lava.top will keep reporting the sale as COMPLETED for ever -- so if this
+    // is not written down here, the totals stay permanently over. A $9.99
+    // chargeback in July was still being counted as takings six weeks later.
+    const counted = addRefundedInvoice({
+        id: event.id || event.invoiceId,
+        email: String(email).toLowerCase(),
+        what: event.product?.title,
+        amount,
+        why: "chargeback",
+    });
+
     await notifyOwner(client,
         `**Chargeback — needs a look**\n\n` +
         `• ${email} — ${productTitle}${amount ? ` (${amount} ${currency})` : ""}\n` +
-        `Nothing was taken away automatically. Use \`node add-refund.js ${email}\` if it is genuine.`);
+        (counted
+            ? "Taken out of the takings. Access untouched — decide that yourself.\n"
+            : "Already on the refund list, so the takings were right already.\n") +
+        `Use \`/refund\` if they should also lose it.`);
 }
 
 async function revokeRole(client, discordId, purchase) {
