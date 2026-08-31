@@ -172,6 +172,12 @@ function ratingFor(product) {
 
     for (const [id, r] of Object.entries(load(STORE, {}))) {
         if (id.startsWith("__") || !r || !r.rating) continue;
+
+        // The shop's own owner is not a customer. Testing the buttons with two
+        // stars pulled a real 4.70 down to 4.45 on a live product panel, which
+        // is the same trap /abandoned fell into with his own test checkouts.
+        if (r.owner) continue;
+
         if (r.product === product || normalise(r.product) === want) scores.push(r.rating);
     }
 
@@ -601,12 +607,31 @@ async function handleVouch(interaction, client) {
     record.rating = rating;
     record.words = words;
     record.ratedAt = Date.now();
+
+    // Marked on the record rather than worked out at read time: the average is
+    // computed synchronously, from the file alone, with no client to ask.
+    try {
+        const guild = await client.guilds.fetch(process.env.GUILD_ID);
+        record.owner = String(guild.ownerId) === interaction.user.id;
+    } catch {
+        record.owner = false;
+    }
     store[interaction.user.id] = record;
     save(store);
 
-    // The average on the shop panels just moved. Every rating counts towards it,
-    // including the low ones that never reach the channel.
+    // The average on the shop panels just moved. Every customer rating counts
+    // towards it, including the low ones that never reach the channel.
     await refreshPanels(client, record.product);
+
+    // Nothing else happens for the owner's own rating. Posting it would be the
+    // shop reviewing itself, and there is no point DMing him what he just typed.
+    if (record.owner) {
+        return interaction.reply({
+            content: "Noted, but not counted \u2014 your own rating stays out of the average "
+                + "and out of the channel.",
+            flags: 64,
+        }).then(() => true);
+    }
 
     /**
      * What somebody who rated low is answered with.
