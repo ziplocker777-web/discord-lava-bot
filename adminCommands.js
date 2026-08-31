@@ -48,6 +48,37 @@ const OUR_ROLE_IDS = () => [
     process.env.COLLECTOR_ROLE_ID,
 ].filter(Boolean);
 
+/**
+ * Was this sale handed back?
+ *
+ * Two lists, because a refund and a chargeback are not the same event.
+ *
+ * refundedEmails blocks a whole address -- right for somebody who charged back
+ * and should lose access, wrong for a customer who returned one thing and kept
+ * two others. David Williams returned a $5 add-on and still owns Muzzle Core FX
+ * and the Audio Overhaul; blocking his address to make the takings add up would
+ * have taken away what he paid for.
+ *
+ * refundedInvoices names the single payment instead, and exists because lava.top
+ * leaves a refunded sale reading COMPLETED for ever. Three of them were missing
+ * from both lists until the payout history was compared against this by hand,
+ * and $18.39 of money that had been given back was still being reported as
+ * takings.
+ *
+ * An invoice caught by either list is skipped once, so nothing is deducted twice.
+ */
+const refundedEmailList = () => {
+    try { return require("./refundedEmails.json"); } catch { return []; }
+};
+
+const refundedInvoiceIds = () => {
+    try { return require("./refundedInvoices.json").map((r) => r.id); } catch { return []; }
+};
+
+const wasRefunded = (r) =>
+    refundedEmailList().includes(String(r.buyer?.email || "").toLowerCase())
+    || refundedInvoiceIds().includes(r.id);
+
 const when = (t) => (t ? new Date(t).toISOString().replace("T", " ").slice(0, 16) : "—");
 
 /**
@@ -693,15 +724,10 @@ async function stats(interaction) {
      * them: a refunded sale still reads COMPLETED in the API for ever, so the
      * only record that it happened is the one this bot keeps.
      */
-    const refundedList = (() => {
-        try { return require("./refundedEmails.json"); } catch { return []; }
-    })();
-
     const net = (list) => {
         const sums = {};
         for (const r of list) {
-            const email = String(r.buyer?.email || "").toLowerCase();
-            if (refundedList.includes(email)) continue;
+            if (wasRefunded(r)) continue;
             const cur = r.receipt?.currency || r.amountTotal?.currency || "?";
             const amount = r.receipt?.amount ?? r.amountTotal?.amount ?? 0;
             sums[cur] = (sums[cur] || 0) + amount - (r.receipt?.fee || 0);
@@ -814,8 +840,7 @@ async function stats(interaction) {
         return total + (tier?.prices?.USD || 0);
     }, 0);
 
-    const refundedHere = paid.filter((r) =>
-        refundedList.includes(String(r.buyer?.email || "").toLowerCase())).length;
+    const refundedHere = paid.filter(wasRefunded).length;
 
     return interaction.editReply([
         "# Sales",
@@ -832,8 +857,9 @@ async function stats(interaction) {
             paid,
             14,
             (r) => Date.parse(r.datetime || r.created || ""),
-            // Net, to match the totals above: the commission never arrived either.
-            (r) => (r.receipt?.amount || 0) - (r.receipt?.fee || 0),
+            // Net, to match the totals above: the commission never arrived either,
+            // and money handed back is not takings on the day it landed.
+            (r) => (wasRefunded(r) ? 0 : (r.receipt?.amount || 0) - (r.receipt?.fee || 0)),
             (n) => (n ? n.toFixed(2) : "\u2014")),
         "",
         `### Subscriptions\n${live.length} running` +
@@ -1127,17 +1153,13 @@ async function top(interaction, client) {
         return interaction.editReply(`lava.top did not answer (${err.response?.status || err.message}).`);
     }
 
-    const refundedList = (() => {
-        try { return require("./refundedEmails.json"); } catch { return []; }
-    })();
-
     const by = new Map();
     for (const r of rows) {
         if (String(r.status).toUpperCase() !== "COMPLETED") continue;
         if (mine && String(r.clientUtm?.utm_content || "") === mine) continue;
 
         const email = String(r.buyer?.email || "").toLowerCase();
-        if (!email || refundedList.includes(email)) continue;
+        if (!email || wasRefunded(r)) continue;
 
         const e = by.get(email) || { n: 0, spent: 0, id: null, last: "" };
         e.n += 1;
