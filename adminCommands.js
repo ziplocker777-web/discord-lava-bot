@@ -1095,7 +1095,7 @@ async function top(interaction, client) {
  */
 /** Put the rating panel at the bottom of the vouch channel. */
 async function vouchpanel(interaction, client) {
-    const { movePanel } = require("./vouch");
+    const { movePanel, adoptPanels } = require("./vouch.js");
 
     if (!process.env.VOUCH_CHANNEL_ID) {
         return interaction.editReply("`VOUCH_CHANNEL_ID` is not set in .env.");
@@ -1469,6 +1469,7 @@ const HANDLERS = {
     vouchpanel,
     sync,
     health,
+    adoptpanels,
 };
 
 /**
@@ -1500,6 +1501,30 @@ function warmMemberStats(client) {
 
     setTimeout(run, 30_000);
     setInterval(run, 55 * 60 * 1000).unref?.();
+}
+
+/**
+ * Attach the buyer rating to the product panels already sitting in this channel.
+ *
+ * Run once per shop channel. Panels posted from here on register themselves.
+ */
+async function adoptpanels(interaction) {
+    const found = await adoptPanels(interaction.channel);
+
+    if (!found.length) {
+        return interaction.editReply(
+            "No product panels here. Run this in the channel the panels are actually in.");
+    }
+
+    const lines = found.map(({ product, rated }) =>
+        `\u2022 ${product} \u2014 ${rated ? "rating attached" : "waiting for a third rating"}`);
+
+    return interaction.editReply([
+        `### Adopted ${found.length} panel${found.length === 1 ? "" : "s"}`,
+        ...lines,
+        "",
+        "-# They update themselves from now on, every time somebody rates.",
+    ].join("\n"));
 }
 
 /** @returns {Promise<boolean>} whether this interaction was one of ours */

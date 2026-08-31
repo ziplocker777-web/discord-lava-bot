@@ -114,6 +114,12 @@ new SlashCommandBuilder()
     .toJSON(),
 
   new SlashCommandBuilder()
+    .setName("adoptpanels")
+    .setDescription("Attach buyer ratings to the product panels already in this channel")
+    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
+    .toJSON(),
+
+  new SlashCommandBuilder()
     .setName("abandoned")
     .setDescription("Checkouts started and never finished — with who to ask")
     .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)

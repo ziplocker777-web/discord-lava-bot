@@ -24,7 +24,7 @@ require("./env.js").loadEnv();
 const fs = require("fs");
 const path = require("path");
 const {
-    ActionRowBuilder, ButtonBuilder, ButtonStyle,
+    ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder,
     ContainerBuilder, SectionBuilder, SeparatorBuilder, SeparatorSpacingSize,
     TextDisplayBuilder, ThumbnailBuilder, MessageFlags,
     ModalBuilder, TextInputBuilder, TextInputStyle,
@@ -140,6 +140,196 @@ async function subInfo() {
 function labelFor(title, offer) {
     if (title !== "Subscription ziplocker") return title;
     return offer ? `${offer} subscription` : "subscription";
+}
+
+// ========================== RATINGS ON THE PANELS ==========================
+//
+// Ten people have rated Muzzle Core FX and the average came out at 4.7, which
+// nobody shopping could see: it lived in a channel you have to already care
+// enough to open. A shop page that says nothing about what buyers thought is
+// asking every visitor to be the first one.
+
+const PANELS = path.join(__dirname, "panelStore.json");
+
+/**
+ * How many ratings a product needs before its panel carries one.
+ *
+ * Two five-star reviews average a perfect 5.0 and mean nothing; worse, "5.0
+ * from 2 reviews" reads as a shop nobody buys from. Under the threshold the
+ * panel says nothing at all, which is the honest state of it.
+ */
+const MIN_RATINGS = Number(process.env.RATING_MIN || 3);
+
+/** The same product, whatever its apostrophes and emoji happen to be doing. */
+const normalise = (s) => String(s || "").toLowerCase().replace(/[^a-z0-9]+/g, "");
+
+/** Mean and count for one product, or null while there are too few to publish. */
+function ratingFor(product) {
+    if (!product) return null;
+
+    const want = normalise(product);
+    const scores = [];
+
+    for (const [id, r] of Object.entries(load(STORE, {}))) {
+        if (id.startsWith("__") || !r || !r.rating) continue;
+        if (r.product === product || normalise(r.product) === want) scores.push(r.rating);
+    }
+
+    if (scores.length < MIN_RATINGS) return null;
+
+    return {
+        avg: scores.reduce((total, n) => total + n, 0) / scores.length,
+        count: scores.length,
+    };
+}
+
+/**
+ * The line a product panel carries, or "" while the product is too new.
+ *
+ * Rounded stars beside the exact number: the stars are what the eye takes in at
+ * a glance, and the number is there so that 4.7 is not quietly shown as five.
+ */
+function ratingLine(product) {
+    const r = ratingFor(product);
+    if (!r) return "";
+
+    const stars = "\u2b50".repeat(Math.round(r.avg));
+    const channel = process.env.VOUCH_CHANNEL_ID;
+
+    return `${stars} **${r.avg.toFixed(1)}** / 5 \u2014 rated by ${r.count} buyers`
+        + (channel ? ` \u00b7 <#${channel}>` : "");
+}
+
+/**
+ * Post a product panel, and remember it so its rating can stay current.
+ *
+ * The description is stored as it stood BEFORE the rating was appended. A later
+ * refresh rebuilds from that, rather than trying to cut the old line back out of
+ * the finished text -- which would be one greedy regex away from eating the price.
+ */
+async function postPanel(channel, { embed, components, files, product }) {
+    const base = embed.data.description || "";
+    const line = ratingLine(product);
+
+    const shown = EmbedBuilder.from(embed)
+        .setDescription(line ? `${base}\n\n${line}` : base);
+
+    const payload = { embeds: [shown] };
+    if (components) payload.components = components;
+    if (files) payload.files = files;
+
+    const message = await channel.send(payload);
+
+    const panels = load(PANELS, {});
+    panels[message.id] = { channel: message.channelId, product, base };
+    fs.writeFileSync(PANELS, JSON.stringify(panels, null, 2));
+
+    return message;
+}
+
+/**
+ * Rewrite the rating on every posted panel for this product.
+ *
+ * Panels that have been deleted are forgotten rather than retried: the store
+ * would otherwise accumulate dead ids for good, each one costing two failed API
+ * calls every time anybody rates anything.
+ */
+async function refreshPanels(client, product) {
+    if (!product) return;
+
+    const panels = load(PANELS, {});
+    const line = ratingLine(product);
+    let forgot = false;
+
+    for (const [id, panel] of Object.entries(panels)) {
+        if (normalise(panel.product) !== normalise(product)) continue;
+
+        try {
+            const channel = await client.channels.fetch(panel.channel);
+            const message = await channel.messages.fetch(id);
+            if (!message.embeds[0]) continue;
+
+            await message.edit({
+                embeds: [EmbedBuilder.from(message.embeds[0])
+                    .setDescription(line ? `${panel.base}\n\n${line}` : panel.base)],
+            });
+        } catch (err) {
+            console.log(`[vouch] panel ${id} is gone (${err.message}) -- forgetting it`);
+            delete panels[id];
+            forgot = true;
+        }
+    }
+
+    if (forgot) fs.writeFileSync(PANELS, JSON.stringify(panels, null, 2));
+}
+
+/**
+ * The heading a panel prints, against the product name lava.top invoices under.
+ *
+ * Needed because the two are not the same string and never were: the panel says
+ * "Membership" and the invoice says "Subscription ziplocker", which a review is
+ * filed under as "Membership subscription".
+ */
+const PANEL_HEADINGS = [
+    ["Muzzle Core FX", "Muzzle Core FX"],
+    ["Ziplocker Summer Visuals", "Ziplocker Summer Visuals"],
+    ["Complete Audio Overhaul", "Complete Audio Overhaul"],
+    ["Ziplocker's Blood FX", "Ziplocker's Blood FX"],
+    ["Ziplocker Graphics Pack", "Ziplocker Graphics Pack"],
+    ["Ziplocker's Graphics Pack V2", "Ziplocker's Graphics Pack V2"],
+    ["Ziplocker's Graphics V2", "Ziplocker's Graphics V2"],
+    ["Basic", "Basic subscription"],
+    ["Membership", "Membership subscription"],
+    ["Premium", "Premium subscription"],
+];
+
+/** A rating line this code wrote earlier, so re-adopting cannot stack them up. */
+const RATING_LINE = /\n*^\u2b50+ \*\*\d[^\n]*$/m;
+
+/**
+ * Register panels that were posted before any of this existed.
+ *
+ * The alternative was reposting every panel, which drops it to the bottom of the
+ * shop channel and breaks every link anybody has ever pasted to it. This finds
+ * the messages already there and adopts them in place.
+ *
+ * Matching is on the heading, normalised, so the emoji in front of it and the
+ * apostrophe inside it do not matter. Anything that is not a known panel is left
+ * alone -- there are announcements and images in these channels too.
+ */
+async function adoptPanels(channel) {
+    const byHeading = new Map(PANEL_HEADINGS.map(([h, p]) => [normalise(h), p]));
+    const panels = load(PANELS, {});
+    const found = [];
+
+    const messages = await channel.messages.fetch({ limit: 100 });
+
+    for (const message of messages.values()) {
+        if (!message.author.bot || !message.embeds[0]) continue;
+
+        const description = message.embeds[0].description || "";
+        const heading = description.split("\n").find((l) => l.startsWith("# "));
+        if (!heading) continue;
+
+        const product = byHeading.get(normalise(heading.slice(2)));
+        if (!product) continue;
+
+        // Store the panel as it reads WITHOUT a rating, so a second adopt of an
+        // already-rated panel does not bake the old line into the base text.
+        const base = description.replace(RATING_LINE, "");
+        panels[message.id] = { channel: message.channelId, product, base };
+
+        const line = ratingLine(product);
+        await message.edit({
+            embeds: [EmbedBuilder.from(message.embeds[0])
+                .setDescription(line ? `${base}\n\n${line}` : base)],
+        });
+
+        found.push({ product, rated: Boolean(line) });
+    }
+
+    fs.writeFileSync(PANELS, JSON.stringify(panels, null, 2));
+    return found;
 }
 
 async function candidates(client) {
@@ -414,6 +604,10 @@ async function handleVouch(interaction, client) {
     store[interaction.user.id] = record;
     save(store);
 
+    // The average on the shop panels just moved. Every rating counts towards it,
+    // including the low ones that never reach the channel.
+    await refreshPanels(client, record.product);
+
     await interaction.reply({
         content: rating >= PUBLIC_MIN
             ? "Thanks, it's up in the channel."
@@ -471,4 +665,5 @@ function startVouch(client) {
 
 module.exports = {
     startVouch, handleVouch, candidates, movePanel, buildReview, displayName, load, STORE,
+    postPanel, refreshPanels, ratingLine, ratingFor, adoptPanels,
 };

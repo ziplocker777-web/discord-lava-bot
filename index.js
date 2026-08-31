@@ -27,7 +27,7 @@ const { isRefunded } = require("./refundedEmails.js");
 const { handleAdminCommand, warmMemberStats } = require("./adminCommands.js");
 const { handlePanel } = require("./adminPanel.js");
 const { startWinback, handleWinback } = require("./winback.js");
-const { startVouch, handleVouch } = require("./vouch.js");
+const { startVouch, handleVouch, postPanel } = require("./vouch.js");
 const {
     registerAiSupport, handleQuestion, sendWithRetry, recordFeedback, usageSummary,
 } = require("./aiSupport.js");
@@ -403,7 +403,9 @@ Already own Muzzle Core FX? Expand it with 4 more cinematic muzzle flash texture
                 .setEmoji("⚡")
         );
 
-        await interaction.channel.send({ embeds: [embed], components: [row] });
+        await postPanel(interaction.channel, {
+            embed, components: [row], product: "Muzzle Core FX",
+        });
 
         return interaction.reply({
             content: "✅ Panel created.",
@@ -478,7 +480,9 @@ Pair it with Muzzle Core FX to upgrade both your graphics and weapon effects.
                 .setEmoji("💳")
         );
 
-        await interaction.channel.send({ embeds: [embed], components: [row] });
+        await postPanel(interaction.channel, {
+            embed, components: [row], product: "Ziplocker Summer Visuals",
+        });
 
         return interaction.reply({
             content: "✅ Panel created.",
@@ -565,7 +569,9 @@ All three sound packs are included with a single purchase.
                 .setEmoji("💳")
         );
 
-        await interaction.channel.send({ embeds: [embed], components: [row] });
+        await postPanel(interaction.channel, {
+            embed, components: [row], product: "Complete Audio Overhaul",
+        });
 
         return interaction.reply({
             content: "✅ Panel created.",
@@ -621,7 +627,9 @@ Numerous environmental and damage-related textures and effects have also been re
                 .setEmoji("💳")
         );
 
-        await interaction.channel.send({ embeds: [embed], components: [row] });
+        await postPanel(interaction.channel, {
+            embed, components: [row], product: "Ziplocker's Blood FX",
+        });
 
         return interaction.reply({
             content: "✅ Panel created.",
@@ -696,7 +704,9 @@ The pack includes everything you need, along with installation instructions to g
                 .setURL("https://www.youtube.com/watch?v=HHMTXwCt5wY")
         );
 
-        await interaction.channel.send({ embeds: [embed], components: [row] });
+        await postPanel(interaction.channel, {
+            embed, components: [row], product: "Ziplocker Graphics Pack",
+        });
 
         return interaction.reply({
             content: "✅ Panel created.",
@@ -777,7 +787,9 @@ The pack includes everything required, together with simple installation instruc
                 .setEmoji("💳")
         );
 
-        await interaction.channel.send({ embeds: [embed], components: [row] });
+        await postPanel(interaction.channel, {
+            embed, components: [row], product: "Ziplocker's Graphics Pack V2",
+        });
 
         return interaction.reply({
             content: "✅ Panel created.",
@@ -842,7 +854,9 @@ Includes everything needed, along with a simple installation guide to get starte
                 .setEmoji("💳")
         );
 
-        await interaction.channel.send({ embeds: [embed], components: [row] });
+        await postPanel(interaction.channel, {
+            embed, components: [row], product: "Ziplocker's Graphics V2",
+        });
 
         return interaction.reply({
             content: "✅ Panel created.",
@@ -909,7 +923,9 @@ Audio, blood and graphics in one subscription — and every new release outside 
                 .setEmoji("💳")
         );
 
-        await interaction.channel.send({ embeds: [embed], files: [banner], components: [row] });
+        await postPanel(interaction.channel, {
+            embed, components: [row], files: [banner], product: "Basic subscription",
+        });
 
         return interaction.reply({
             content: "✅ Panel created.",
@@ -965,7 +981,9 @@ Muzzle Core FX, both graphics packs, and every release that follows. Nothing is 
                 .setEmoji("💳")
         );
 
-        await interaction.channel.send({ embeds: [embed], files: [banner], components: [row] });
+        await postPanel(interaction.channel, {
+            embed, components: [row], files: [banner], product: "Membership subscription",
+        });
 
         return interaction.reply({
             content: "✅ Panel created.",
@@ -1016,7 +1034,9 @@ Membership gets you everything that exists. Premium decides what exists next —
                 .setEmoji("💳")
         );
 
-        await interaction.channel.send({ embeds: [embed], files: [banner], components: [row] });
+        await postPanel(interaction.channel, {
+            embed, components: [row], files: [banner], product: "Premium subscription",
+        });
 
         return interaction.reply({
             content: "✅ Panel created.",
