@@ -94,7 +94,7 @@ function displayName(user) {
         return READABLE.test(trimmed.replace(FILLERS, "")) ? trimmed : null;
     };
 
-    return usable(user.globalName) || usable(user.username) || "A buyer";
+    return usable(user.globalName) || usable(user.username) || "A customer";
 }
 
 /**
@@ -202,7 +202,7 @@ function ratingLine(product) {
     const stars = "\u2b50".repeat(Math.round(r.avg));
     const channel = process.env.VOUCH_CHANNEL_ID;
 
-    return `${stars} **${r.avg.toFixed(1)}** / 5 \u2014 rated by ${r.count} buyers`
+    return `${stars} **${r.avg.toFixed(1)}** / 5 \u2014 rated by ${r.count} customers`
         + (channel ? ` \u00b7 <#${channel}>` : "");
 }
 

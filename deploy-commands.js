@@ -115,7 +115,7 @@ new SlashCommandBuilder()
 
   new SlashCommandBuilder()
     .setName("adoptpanels")
-    .setDescription("Attach buyer ratings to the product panels already in this channel")
+    .setDescription("Attach customer ratings to the product panels already in this channel")
     .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
     .toJSON(),
 
