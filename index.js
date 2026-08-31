@@ -23,6 +23,7 @@ const tierBannerPath = (file) => path.join(__dirname, "assets", "tiers", file);
 
 const { startWebhookServer, revokeRole, WATERMARKED_PRODUCT_IDS } = require("./webhookServer.js");
 const { getAllPurchases, getPurchaseForProduct, recordPurchase } = require("./purchaseStore.js");
+const { checkCollector } = require("./collector.js");
 const { isRefunded } = require("./refundedEmails.js");
 const { handleAdminCommand, warmMemberStats } = require("./adminCommands.js");
 const { handlePanel } = require("./adminPanel.js");
@@ -158,6 +159,10 @@ async function verifyPurchaseAndDeliver(interaction, email) {
         const inlineDeliveries = [];
         const failedTitles = [];
         let anyRolesConfigured = false;
+
+        // Somebody verifying an older purchase can already have earned the badge
+        // before it existed, so /getrole is the second place it can be handed out.
+        await checkCollector(client, interaction.user.id, email);
 
         for (const purchase of purchases) {
             const roleIds = getRolesForPurchase(purchase);

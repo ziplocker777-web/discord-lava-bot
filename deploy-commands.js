@@ -174,6 +174,7 @@ new SlashCommandBuilder()
         .setRequired(true)
         .addChoices(
           { name: "Customer", value: "ROLE_ID" },
+          { name: "Collector", value: "COLLECTOR_ROLE_ID" },
           { name: "Basic", value: "BASIC_ROLE_ID" },
           { name: "Membership", value: "SUBSCRIBE_ROLE_ID" },
           { name: "Premium", value: "PREMIUM_ROLE_ID" }

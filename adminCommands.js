@@ -27,6 +27,7 @@ const lava = axios.create({
 
 // The panel asks for a role by the name a person would say, not by the .env key.
 const ROLE_ENV_BY_NAME = {
+    collector: "COLLECTOR_ROLE_ID",
     // The role is called "Customer" on the server. "buyer" is kept as an alias
     // rather than dropped: it is what this table said for months, and a name
     // that used to work should not start failing silently.
@@ -44,6 +45,7 @@ const OUR_ROLE_IDS = () => [
     process.env.SUBSCRIBE_ROLE_ID,
     process.env.BASIC_ROLE_ID,
     process.env.PREMIUM_ROLE_ID,
+    process.env.COLLECTOR_ROLE_ID,
 ].filter(Boolean);
 
 const when = (t) => (t ? new Date(t).toISOString().replace("T", " ").slice(0, 16) : "—");

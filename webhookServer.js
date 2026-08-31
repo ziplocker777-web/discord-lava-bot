@@ -1,6 +1,7 @@
 require("dotenv").config();
 const express = require("express");
 const { recordPurchase, markStatus, getPurchaseForProduct } = require("./purchaseStore");
+const { checkCollector } = require("./collector");
 const {
     getRolesForPurchase,
     getRolesForProduct,
@@ -586,6 +587,10 @@ async function grantRole(client, discordId, purchase) {
     // keep letting them into everything it unlocks. Only runs when a tier role was
     // actually granted above — an ordinary one-off purchase must not touch the
     // subscription roles of a member who also happens to be subscribed.
+    // The badge for owning more than one product. Checked after the purchase has
+    // been recorded, so the count it reads includes the thing just bought.
+    await checkCollector(client, discordId, purchase?.buyer?.email || purchase?.email);
+
     const grantedTierRoles = getAllTierRoleIds().filter((id) => roleIds.includes(id));
     if (grantedTierRoles.length === 0) return;
 

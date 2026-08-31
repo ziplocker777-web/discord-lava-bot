@@ -44,6 +44,7 @@ const lava = axios.create({
 
 const ROLE_NAMES = {
     [process.env.ROLE_ID]: "Customer",
+    [process.env.COLLECTOR_ROLE_ID]: "Collector",
     [process.env.SUBSCRIBE_ROLE_ID]: "Membership",
     [process.env.BASIC_ROLE_ID]: "Basic",
     [process.env.PREMIUM_ROLE_ID]: "Premium",
