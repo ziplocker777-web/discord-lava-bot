@@ -714,13 +714,66 @@ async function stats(interaction) {
     const live = [...subs.values()].filter((sv) =>
         sv.expiredAt ? Date.parse(sv.expiredAt) > now : sv.status === "ACTIVE");
 
-    const sellers = {};
-    for (const r of week) {
+    /**
+     * Sales per product, over the same three windows as the totals above.
+     *
+     * The tier is what gets the row, not the product: lava.top files Basic,
+     * Membership and Premium under one name, "Subscription ziplocker", and
+     * reading that back as a single line hides which of the three anybody is
+     * actually buying.
+     *
+     * A renewal is a payment and is counted as one, so the `all` column adds up
+     * to the sale count in the header. Refunds are not deducted here for the
+     * same reason -- these columns have to reconcile with the totals above, and
+     * the money lines are where the refunds are already taken off.
+     */
+    const nameOf = (r) => {
         const name = r.product?.name || "?";
-        sellers[name] = (sellers[name] || 0) + 1;
+        if (name === "Subscription ziplocker" && r.product?.offer) return `${r.product.offer} sub`;
+        return name;
+    };
+
+    const inWeek = new Set(week);
+    const inMonth = new Set(month);
+
+    const byProduct = new Map();
+    for (const r of paid) {
+        const name = nameOf(r);
+        const e = byProduct.get(name) || { week: 0, month: 0, all: 0 };
+        e.all += 1;
+        if (inWeek.has(r)) e.week += 1;
+        if (inMonth.has(r)) e.month += 1;
+        byProduct.set(name, e);
     }
-    const top = Object.entries(sellers).sort((a, b) => b[1] - a[1]).slice(0, 5)
-        .map(([name, n]) => `• ${name} — ${n}`).join("\n");
+
+    // Wrapped in a code block and truncated, for the reason the charts are:
+    // proportional text starts every column somewhere different and the table
+    // falls apart on a phone. Eighteen characters keeps a row inside a narrow
+    // screen without scrolling.
+    // Every product carries the shop's own name, and the add-on carries the base
+    // product's on top of that. Neither distinguishes anything in a list of this
+    // shop's own sales, and both cost the width that does: without this, three
+    // different Graphics products all truncated to the same "Ziplocker's Graph".
+    const trim = (n) => n
+        .replace(/^Ziplocker(?:'s)? /, "")
+        .replace(/^Muzzle Core FX \| /, "");
+
+    const short = (n) => {
+        const t = trim(n);
+        return t.length > 18 ? t.slice(0, 17) + "\u2026" : t;
+    };
+    const ranked = [...byProduct.entries()].sort((a, b) => b[1].all - a[1].all);
+    const widest = Math.max(...ranked.map(([n]) => short(n).length), 7);
+    const cell = (n) => String(n).padStart(3);
+
+    const products = ranked.length ? [
+        "### By product",
+        "```",
+        `${"".padEnd(widest)}  ${cell("7d")}  ${cell("30d")}  ${cell("all")}`,
+        ...ranked.map(([name, e]) =>
+            `${short(name).padEnd(widest)}  ${cell(e.week)}  ${cell(e.month)}  ${cell(e.all)}`),
+        "```",
+    ] : ["_Nothing sold yet._"];
 
     // All time is only as long as lava.top's invoice list reaches back, so it is
     // labelled by the date of the earliest one rather than called "all time".
@@ -762,7 +815,7 @@ async function stats(interaction) {
         `### Subscriptions\n${live.length} running` +
         (recurring ? ` — ${recurring.toFixed(2)} USD a month before commission` : ""),
         "",
-        top ? `### This week\n${top}` : "_No sales this week._",
+        ...products,
     ].join("\n").slice(0, 1990));
 }
 
