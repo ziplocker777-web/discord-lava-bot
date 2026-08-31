@@ -608,10 +608,31 @@ async function handleVouch(interaction, client) {
     // including the low ones that never reach the channel.
     await refreshPanels(client, record.product);
 
+    /**
+     * What somebody who rated low is answered with.
+     *
+     * The old wording said only that it had gone to the owner rather than the
+     * channel, which reads uncomfortably close to "yours will not be shown" --
+     * and it left the one person who has just said something is broken with
+     * nowhere to go. A ticket is where it actually gets fixed, and a link button
+     * is one tap instead of hunting for the channel.
+     */
+    const low = rating < PUBLIC_MIN;
+    const ticket = process.env.TICKET_CHANNEL_ID;
+    const guild = process.env.GUILD_ID;
+
     await interaction.reply({
-        content: rating >= PUBLIC_MIN
-            ? "Thanks, it's up in the channel."
-            : "Thanks. This one's gone to the owner directly.",
+        content: low
+            ? "Thanks \u2014 that went straight to the owner rather than the channel.\n\n"
+                + "If something isn't working, open a ticket and say what. It gets read."
+            : "Thanks, it's up in the channel.",
+        components: low && ticket && guild
+            ? [new ActionRowBuilder().addComponents(
+                new ButtonBuilder()
+                    .setStyle(ButtonStyle.Link)
+                    .setLabel("Open a ticket")
+                    .setURL(`https://discord.com/channels/${guild}/${ticket}`))]
+            : [],
         flags: 64,
     });
 
