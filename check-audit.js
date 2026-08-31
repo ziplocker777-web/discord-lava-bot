@@ -21,7 +21,7 @@ const who = process.argv[2] || null;
 
 // Role ids this bot hands out, so the output says which tier rather than a number.
 const ROLE_NAMES = {
-    [process.env.ROLE_ID]: "ROLE_ID (buyer)",
+    [process.env.ROLE_ID]: "ROLE_ID (Customer)",
     [process.env.SUBSCRIBE_ROLE_ID]: "SUBSCRIBE_ROLE_ID (Membership)",
     [process.env.BASIC_ROLE_ID]: "BASIC_ROLE_ID",
     [process.env.PREMIUM_ROLE_ID]: "PREMIUM_ROLE_ID",

@@ -38,7 +38,7 @@ const ACTIONS = {
     lapsed: { label: "Subscriptions", emoji: "📉", style: ButtonStyle.Secondary, fields: [] },
 
     abandoned: { label: "Lost sales", emoji: "🛒", style: ButtonStyle.Secondary, fields: [] },
-    top: { label: "Best buyers", emoji: "🏆", style: ButtonStyle.Secondary, fields: [] },
+    top: { label: "Best customers", emoji: "🏆", style: ButtonStyle.Secondary, fields: [] },
     members: { label: "Members", emoji: "👥", style: ButtonStyle.Secondary, fields: [] },
     winback: { label: "Ask why", emoji: "💬", style: ButtonStyle.Secondary, fields: [] },
     vouch: { label: "Reviews", emoji: "⭐", style: ButtonStyle.Secondary, fields: [] },
@@ -46,7 +46,7 @@ const ACTIONS = {
 
     customer: {
         label: "Look up", emoji: "🔍", style: ButtonStyle.Primary,
-        title: "Look up a buyer",
+        title: "Look up a customer",
         fields: [{ id: "who", label: "Email, Discord id, or licence key", required: true }],
     },
     resend: {
@@ -64,7 +64,7 @@ const ACTIONS = {
         title: "Give somebody a role by hand",
         fields: [
             { id: "user", label: "Discord id", required: true },
-            { id: "role", label: "buyer / Basic / Membership / Premium", required: true },
+            { id: "role", label: "Customer / Basic / Membership / Premium", required: true },
             { id: "email", label: "Email (optional, so it is on record)", required: false },
         ],
     },

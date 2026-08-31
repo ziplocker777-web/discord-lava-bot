@@ -27,6 +27,10 @@ const lava = axios.create({
 
 // The panel asks for a role by the name a person would say, not by the .env key.
 const ROLE_ENV_BY_NAME = {
+    // The role is called "Customer" on the server. "buyer" is kept as an alias
+    // rather than dropped: it is what this table said for months, and a name
+    // that used to work should not start failing silently.
+    customer: "ROLE_ID",
     buyer: "ROLE_ID",
     basic: "BASIC_ROLE_ID",
     membership: "SUBSCRIBE_ROLE_ID",
@@ -216,7 +220,7 @@ async function customer(interaction, client) {
     // ---- what Discord shows right now
     //
     // Names come off the roles themselves rather than a table in here: the
-    // role called "buyer" in .env is called something else on the server, and
+    // role behind ROLE_ID is called "Customer" on the server, not what any
     // printing our name for it makes the answer wrong in a way nobody can see.
     const ours = OUR_ROLE_IDS();
     for (const id of ids) {
@@ -352,7 +356,7 @@ async function grantrole(interaction, client) {
     const roleId = process.env[roleEnv];
     if (!roleId) {
         return interaction.editReply(
-            `Don't know a role called \`${asked}\`. Use one of: buyer, Basic, Membership, Premium.`);
+            `Don't know a role called \`${asked}\`. Use one of: Customer, Basic, Membership, Premium.`);
     }
 
     const guild = await client.guilds.fetch(process.env.GUILD_ID);
@@ -954,7 +958,7 @@ async function sync(interaction, client) {
     const buyerRole = process.env.ROLE_ID;
     if (buyerRole && !member.roles.cache.has(buyerRole)) {
         await member.roles.add(buyerRole);
-        given.push("buyer");
+        given.push("Customer");
     }
 
     return interaction.editReply(given.length
@@ -1128,7 +1132,7 @@ async function top(interaction, client) {
     const ranked = [...by.entries()].sort((a, b) => b[1].spent - a[1].spent);
     const repeat = ranked.filter(([, v]) => v.n > 1).length;
 
-    const lines = [`# ${by.size} buyers`, `_${repeat} of them have come back._`, ""];
+    const lines = [`# ${by.size} customers`, `_${repeat} of them have come back._`, ""];
 
     ranked.slice(0, 12).forEach(([email, v], i) => {
         lines.push(`**${i + 1}.** ${v.spent.toFixed(2)} USD — ${v.n} purchase(s)`);
@@ -1425,7 +1429,7 @@ async function members(interaction, client) {
     if (buyers.size > converted.length) {
         lines.push(
             "",
-            `-# ${buyers.size - converted.length} buyer(s) joined before the log ` +
+            `-# ${buyers.size - converted.length} customer(s) joined before the log ` +
             "starts and are not in the percentage.");
     }
 

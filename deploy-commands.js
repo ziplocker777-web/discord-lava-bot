@@ -173,7 +173,7 @@ new SlashCommandBuilder()
         .setDescription("Which role")
         .setRequired(true)
         .addChoices(
-          { name: "buyer", value: "ROLE_ID" },
+          { name: "Customer", value: "ROLE_ID" },
           { name: "Basic", value: "BASIC_ROLE_ID" },
           { name: "Membership", value: "SUBSCRIBE_ROLE_ID" },
           { name: "Premium", value: "PREMIUM_ROLE_ID" }
@@ -236,7 +236,7 @@ new SlashCommandBuilder()
 
   new SlashCommandBuilder()
     .setName("resend")
-    .setDescription("Send a buyer their download link and key again")
+    .setDescription("Send a customer their download link and key again")
     .addStringOption((option) =>
       option
         .setName("who")
@@ -254,7 +254,7 @@ new SlashCommandBuilder()
 
   new SlashCommandBuilder()
     .setName("customer")
-    .setDescription("Everything known about one buyer: purchases, key, activations, roles")
+    .setDescription("Everything known about one customer: purchases, key, activations, roles")
     .addStringOption((option) =>
       option
         .setName("who")
