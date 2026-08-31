@@ -63,10 +63,28 @@ const lava = axios.create({
 
 async function allInvoices() {
     const out = [];
+    const seen = new Set();
     for (let page = 0; page < 20; page += 1) {
         const { data } = await lava.get("/invoices", { params: { page, size: 100 } });
         const items = data.items || [];
-        out.push(...items);
+
+        // lava.top numbers its pages from one, so asking for page 0 and page 1
+        // returns the same hundred rows. Every total built on this list counted
+        // the first hundred invoices twice: 157 sales and $1392 where the truth
+        // was 104 and $944.
+        //
+        // Deduplicated by id rather than switched to 1-based paging, because the
+        // id is true whatever the API decides to call its first page -- and a
+        // gateway that changes its mind about this again cannot break the
+        // numbers a second time.
+        const fresh = items.filter((r) => {
+            if (!r.id) return true;          // cannot dedupe it; keeping it is the safer error
+            if (seen.has(r.id)) return false;
+            seen.add(r.id);
+            return true;
+        });
+        out.push(...fresh);
+
         if (items.length < 100) break;
     }
     return out;

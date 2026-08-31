@@ -52,6 +52,7 @@ const ROLE_NAMES = {
 
 async function pages(url, attempt = 0) {
     const out = [];
+    const seen = new Set();
     for (let p = 0; p < 8; p += 1) {
         let data;
         try {
@@ -61,7 +62,16 @@ async function pages(url, attempt = 0) {
             return pages(url, attempt + 1);
         }
         const items = data.items || [];
-        out.push(...items);
+
+        // lava.top pages from one, so page 0 and page 1 are the same rows.
+        const fresh = items.filter((r) => {
+            if (!r.id) return true;
+            if (seen.has(r.id)) return false;
+            seen.add(r.id);
+            return true;
+        });
+        out.push(...fresh);
+
         if (items.length < 100) break;
     }
     return out;

@@ -108,11 +108,22 @@ function displayName(user) {
  */
 async function subInfo() {
     const rows = [];
+    const seen = new Set();
     try {
         for (let page = 0; page < 20; page += 1) {
             const { data } = await lava.get("/invoices", { params: { page, size: 100 } });
             const items = data.items || [];
-            rows.push(...items);
+
+            // lava.top pages from one: page 0 and page 1 are the same hundred
+            // rows. Deduplicated by id, as everywhere else that reads this list.
+            const fresh = items.filter((r) => {
+                if (!r.id) return true;
+                if (seen.has(r.id)) return false;
+                seen.add(r.id);
+                return true;
+            });
+            rows.push(...fresh);
+
             if (items.length < 100) break;
         }
     } catch {
