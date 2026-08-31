@@ -10,7 +10,7 @@ require("./env.js").loadEnv();
  */
 
 const { Client, GatewayIntentBits } = require("discord.js");
-const { MIN_PRODUCTS } = require("./collector");
+const { MIN_PRODUCTS, productCount } = require("./collector");
 
 const APPLY = process.argv.includes("--apply");
 const QUIET = process.argv.includes("--no-dm");
@@ -26,12 +26,25 @@ client.once("clientReady", async () => {
 
     if (!ROLE) { console.error("COLLECTOR_ROLE_ID не задан"); process.exit(1); }
 
+    // Judged by the same function the live grant uses, so the backfill and the
+    // automatic path can never disagree about who has earned it.
     const earned = [];
     for (const [email, list] of Object.entries(db)) {
-        if (!Array.isArray(list) || list.length < MIN_PRODUCTS) continue;
+        if (!Array.isArray(list) || !list.length) continue;
         const discordId = list.map((p) => p.discordId).filter(Boolean)[0];
-        earned.push({ email, discordId, products: list.map((p) => p.productTitle || "?") });
+        const n = productCount(email, discordId);
+        if (n < MIN_PRODUCTS) continue;
+        earned.push({ email, discordId, products: list.map((p) => p.productTitle || "?"), n });
     }
+
+    // One person with two addresses would otherwise be processed twice.
+    const byPerson = new Map();
+    for (const p of earned) {
+        if (p.discordId && byPerson.has(p.discordId)) continue;
+        byPerson.set(p.discordId || p.email, p);
+    }
+    earned.length = 0;
+    earned.push(...byPerson.values());
 
     console.log(`порог: ${MIN_PRODUCTS} разных товара`);
     console.log(`заслужили: ${earned.length}\n`);
@@ -72,7 +85,7 @@ client.once("clientReady", async () => {
     const show = (title, list, extra = () => "") => {
         if (!list.length) return;
         console.log(`\n${title} (${list.length}):`);
-        for (const p of list) console.log(`  ${p.email.padEnd(34)} ${p.products.length} товара  ${extra(p)}`);
+        for (const p of list) console.log(`  ${p.email.padEnd(34)} ${p.n ?? p.products.length} товара  ${extra(p)}`);
     };
 
     show(APPLY ? "ВЫДАНО" : "будет выдано", granted, (p) => p.name || "");

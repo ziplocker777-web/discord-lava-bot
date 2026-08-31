@@ -1,6 +1,9 @@
 require("./env.js").loadEnv();
 
-const { getAllPurchases } = require("./purchaseStore");
+const fs = require("fs");
+const path = require("path");
+
+const STORE = path.join(__dirname, "purchaseStore.json");
 
 /**
  * The Collector badge: for somebody who owns more than one thing from the shop.
@@ -26,16 +29,44 @@ const { getAllPurchases } = require("./purchaseStore");
 
 const MIN_PRODUCTS = Number(process.env.COLLECTOR_MIN_PRODUCTS || 2);
 
-/** How many different products this email owns. Renewals are not products. */
-function productCount(email) {
-    // purchaseStore already keeps one record per product per email -- a second
-    // payment for the same thing replaces the first rather than adding a row --
-    // so the length of the list IS the number of different products.
-    return getAllPurchases(String(email || "").toLowerCase()).length;
+/** Read fresh every time: a purchase made a second ago has to count. */
+function allPurchases() {
+    try { return JSON.parse(fs.readFileSync(STORE, "utf-8")); } catch { return {}; }
 }
 
-function qualifies(email) {
-    return productCount(email) >= MIN_PRODUCTS;
+/**
+ * How many different products this person owns, across every address they have
+ * ever bought under.
+ *
+ * Counting a single email missed somebody who bought Muzzle Core FX with one
+ * address and a subscription with another and linked both to the same Discord
+ * account: two products, two rows, no badge. Found by the audit, in the only two
+ * people it currently applies to.
+ *
+ * Counted as a set of product ids rather than a sum of list lengths, so buying
+ * the same thing under two addresses is still one product.
+ */
+function productCount(email, discordId) {
+    const db = allPurchases();
+    const owned = new Set();
+
+    const add = (list) => {
+        for (const p of list || []) owned.add(p.productId || p.productTitle || JSON.stringify(p));
+    };
+
+    add(db[String(email || "").toLowerCase()]);
+
+    if (discordId) {
+        for (const list of Object.values(db)) {
+            if (Array.isArray(list) && list.some((p) => String(p.discordId) === String(discordId))) add(list);
+        }
+    }
+
+    return owned.size;
+}
+
+function qualifies(email, discordId) {
+    return productCount(email, discordId) >= MIN_PRODUCTS;
 }
 
 /**
@@ -49,7 +80,7 @@ function qualifies(email) {
 async function checkCollector(client, discordId, email, { announce = true } = {}) {
     const roleId = process.env.COLLECTOR_ROLE_ID;
     if (!roleId || !discordId || !email) return false;
-    if (!qualifies(email)) return false;
+    if (!qualifies(email, discordId)) return false;
 
     let member;
     try {
@@ -69,7 +100,7 @@ async function checkCollector(client, discordId, email, { announce = true } = {}
         return false;
     }
 
-    console.log(`[collector] granted to ${discordId} (${productCount(email)} products)`);
+    console.log(`[collector] granted to ${discordId} (${productCount(email, discordId)} products)`);
 
     // A badge nobody notices does no work. Failing to DM is not a failure of the
     // grant, though -- plenty of people have DMs closed.
