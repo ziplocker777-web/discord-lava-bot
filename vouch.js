@@ -55,6 +55,17 @@ const PER_SWEEP = Number(process.env.VOUCH_PER_SWEEP || 5);
  */
 const PUBLIC_MIN = Number(process.env.VOUCH_PUBLIC_MIN || 4);
 
+/**
+ * At or below this, the owner hears about it in a DM.
+ *
+ * Separate from PUBLIC_MIN on purpose. The two used to be the same number, which
+ * meant the DM only happened because the review was being withheld -- so
+ * publishing everything would have quietly switched off the alerts on exactly
+ * the ratings worth reading. A three star that goes straight onto the wall still
+ * needs somebody to look at it.
+ */
+const ALERT_MAX = Number(process.env.VOUCH_ALERT_MAX || 3);
+
 const EVERY_MS = 60 * 60 * 1000;
 
 // Gold for a review, so a wall of them reads as one thing at a glance.
@@ -653,15 +664,22 @@ async function handleVouch(interaction, client) {
      * nowhere to go. A ticket is where it actually gets fixed, and a link button
      * is one tap instead of hunting for the channel.
      */
-    const low = rating < PUBLIC_MIN;
+    const low = rating <= ALERT_MAX;
+    const willPublish = rating >= PUBLIC_MIN && Boolean(process.env.VOUCH_CHANNEL_ID);
     const ticket = process.env.TICKET_CHANNEL_ID;
     const guild = process.env.GUILD_ID;
 
-    await interaction.reply({
-        content: low
+    // Three things to say and only one of them is about where the review went.
+    const said = low && willPublish
+        ? "Thanks \u2014 it's up in the channel, and the owner has it too.\n\n"
+            + "If something isn't working, open a ticket and say what. It gets read."
+        : low
             ? "Thanks \u2014 that went straight to the owner rather than the channel.\n\n"
                 + "If something isn't working, open a ticket and say what. It gets read."
-            : "Thanks, it's up in the channel.",
+            : "Thanks, it's up in the channel.";
+
+    await interaction.reply({
+        content: said,
         components: low && ticket && guild
             ? [new ActionRowBuilder().addComponents(
                 new ButtonBuilder()
@@ -731,11 +749,15 @@ async function handleVouch(interaction, client) {
             }
         }
 
-        if (rating >= PUBLIC_MIN) return true;
+        if (rating >= PUBLIC_MIN && !low) return true;
     }
 
+    // Reached by anything at or below ALERT_MAX whether or not it was published,
+    // and by anything that could not be published at all.
+    if (!low && rating >= PUBLIC_MIN) return true;
+
     await notifyOwner(client,
-        `**${rating < PUBLIC_MIN ? "A rating that needs looking at" : "A review"}**\n\n` +
+        `**${low ? "A rating that needs looking at" : "A review"}**${willPublish ? " (it is on the wall too)" : ""}\n\n` +
         `${stars} — ${record.product || "unknown"}\n` +
         `• <@${interaction.user.id}> · ${record.email || "no email"}\n\n` +
         (words ? `> ${words.slice(0, 900)}` : "_No words._"));
