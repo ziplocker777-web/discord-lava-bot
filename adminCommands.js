@@ -1095,7 +1095,7 @@ async function top(interaction, client) {
  */
 /** Put the rating panel at the bottom of the vouch channel. */
 async function vouchpanel(interaction, client) {
-    const { movePanel, adoptPanels } = require("./vouch.js");
+    const { movePanel } = require("./vouch.js");
 
     if (!process.env.VOUCH_CHANNEL_ID) {
         return interaction.editReply("`VOUCH_CHANNEL_ID` is not set in .env.");
@@ -1509,6 +1509,10 @@ function warmMemberStats(client) {
  * Run once per shop channel. Panels posted from here on register themselves.
  */
 async function adoptpanels(interaction) {
+    // Required here rather than at the top, like the other vouch calls in this
+    // file: index.js loads both modules, and a top-level pair would be circular.
+    const { adoptPanels } = require("./vouch.js");
+
     const found = await adoptPanels(interaction.channel);
 
     if (!found.length) {
