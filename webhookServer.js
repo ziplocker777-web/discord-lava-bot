@@ -1,6 +1,6 @@
 require("dotenv").config();
 const express = require("express");
-const { recordPurchase, markStatus, getPurchaseForProduct } = require("./purchaseStore");
+const { recordPurchase, markStatus, getPurchaseForProduct, hasPurchase } = require("./purchaseStore");
 const { checkCollector } = require("./collector");
 const { addRefundedInvoice } = require("./refundedInvoices");
 const {
@@ -451,20 +451,38 @@ function startWebhookServer(client) {
                 // только фиксируем в логах на случай, если понадобится
                 // отследить паттерн (например, если один и тот же человек
                 // проваливает попытку за попыткой).
+                // A failed FIRST payment and a failed renewal arrive as the same
+                // event, and calling both of them a renewal sends you looking for
+                // a subscriber who never existed. That happened: a Basic checkout
+                // was abandoned at the payment page, the log said "renewal failed",
+                // and the search was for a lapsing customer rather than a lost sale.
+                //
+                // Told apart by whether they ever paid for anything. Somebody with
+                // no purchase on file has never held a role, so there is nothing to
+                // warn them about losing.
+                const everPaid = Boolean(event.buyer?.email && hasPurchase(event.buyer.email));
+
                 console.warn(
-                    `Renewal payment attempt failed (not cancelling yet): ${event.eventType}, ` +
-                    `buyer: ${event.buyer?.email || "?"}, errorMessage: ${event.errorMessage || "?"}`
+                    `${everPaid ? "Renewal" : "First subscription"} payment attempt failed `
+                    + `(not cancelling yet): ${event.eventType}, `
+                    + `buyer: ${event.buyer?.email || "?"}, errorMessage: ${event.errorMessage || "?"}`
                 );
 
                 // Worth knowing before it becomes a lapse: lava.top retries a
                 // couple of times, so there is a day or two here in which a word
                 // to the customer can save the subscription.
-                await notifyOwner(client,
-                    `**Renewal payment failed** — nothing taken away yet\n\n` +
-                    `• ${event.buyer?.email || "unknown"}\n` +
-                    `• reason: ${event.errorMessage || "not given"}\n\n` +
-                    `lava.top will retry. If every attempt fails, the role goes ` +
-                    `automatically and the key three days later.`);
+                await notifyOwner(client, everPaid
+                    ? `**Renewal payment failed** — nothing taken away yet\n\n`
+                        + `• ${event.buyer?.email || "unknown"}\n`
+                        + `• reason: ${event.errorMessage || "not given"}\n\n`
+                        + `lava.top will retry. If every attempt fails, the role goes `
+                        + `automatically and the key three days later.`
+                    : `**A subscription never started** — the first payment failed\n\n`
+                        + `• ${event.buyer?.email || "unknown"}\n`
+                        + `• reason: ${event.errorMessage || "not given"}\n\n`
+                        + `They have never bought anything, so no role or key is `
+                        + `involved. lava.top will retry; this is a lost sale rather `
+                        + `than a lapsing customer.`);
 
                 return res.sendStatus(200);
             } else if (isFinalCancellationEvent(event)) {
