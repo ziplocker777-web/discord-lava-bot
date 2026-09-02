@@ -31,6 +31,7 @@ const {
 } = require("discord.js");
 const axios = require("axios");
 const { notifyOwner } = require("./ownerNotify");
+const { writeJson } = require("./jsonStore");
 
 const lava = axios.create({
     baseURL: "https://gate.lava.top/api/v1",
@@ -77,7 +78,7 @@ function load(file, fallback) {
 }
 
 function save(data) {
-    fs.writeFileSync(STORE, JSON.stringify(data, null, 2));
+    writeJson(STORE, data);
 }
 
 /**
@@ -250,7 +251,7 @@ async function postPanel(channel, { embed, components, files, product }) {
 
     const panels = load(PANELS, {});
     panels[message.id] = { channel: message.channelId, product, base };
-    fs.writeFileSync(PANELS, JSON.stringify(panels, null, 2));
+    writeJson(PANELS, panels);
 
     return message;
 }
@@ -288,7 +289,7 @@ async function refreshPanels(client, product) {
         }
     }
 
-    if (forgot) fs.writeFileSync(PANELS, JSON.stringify(panels, null, 2));
+    if (forgot) writeJson(PANELS, panels);
 }
 
 /**
@@ -356,7 +357,7 @@ async function adoptPanels(channel) {
         found.push({ product, rated: Boolean(line) });
     }
 
-    fs.writeFileSync(PANELS, JSON.stringify(panels, null, 2));
+    writeJson(PANELS, panels);
     return found;
 }
 

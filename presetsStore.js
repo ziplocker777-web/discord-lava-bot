@@ -1,5 +1,6 @@
 const fs = require("fs");
 const crypto = require("crypto");
+const { writeJson } = require("./jsonStore");
 
 const FILE = "./presetsStore.json";
 
@@ -9,7 +10,7 @@ function load() {
 }
 
 function save(list) {
-    fs.writeFileSync(FILE, JSON.stringify(list, null, 2));
+    writeJson(FILE, list);
 }
 
 // Public listing — never includes email/discordId, only what the app needs to

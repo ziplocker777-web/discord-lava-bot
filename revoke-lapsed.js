@@ -38,6 +38,7 @@ const { getAllPurchases } = require("./purchaseStore");
 const { resolveTierWithLegacyFallback, TIERS, SUBSCRIPTION_PRODUCT_ID } = require("./roles");
 const { findByOwner, setRevoked } = require("./watermarkStore");
 const { notifyOwner } = require("./ownerNotify");
+const { writeJson } = require("./jsonStore");
 
 const APPLY = process.argv.includes("--apply");
 
@@ -212,7 +213,7 @@ async function notify(client, done) {
 function record(entries) {
     const log = readJson(LOG_PATH, []);
     log.push(...entries);
-    fs.writeFileSync(LOG_PATH, JSON.stringify(log, null, 2));
+    writeJson(LOG_PATH, log);
 }
 
 (async () => {

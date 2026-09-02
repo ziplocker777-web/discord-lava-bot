@@ -6,6 +6,7 @@ const Anthropic = require("@anthropic-ai/sdk").default;
 const { selectFaq } = require("./faqSelect.js");
 const { buildAnswer } = require("./aiEmbed.js");
 const { fetchAllPrices } = require("./lavaClient.js");
+const { writeJson } = require("./jsonStore");
 
 // The answers themselves live in faq.md, not here. That file is also what gets
 // posted in the FAQ channel and pasted into Ticket Tool's ticket message, so
@@ -193,7 +194,7 @@ function logQuestion(entry) {
             ? JSON.parse(fs.readFileSync(LOG_PATH, "utf-8"))
             : [];
         existing.push({ id, at: new Date().toISOString(), ...entry });
-        fs.writeFileSync(LOG_PATH, JSON.stringify(existing, null, 2));
+        writeJson(LOG_PATH, existing);
     } catch (err) {
         console.error("[ai] could not write supportLog.json:", err.message);
     }
@@ -306,7 +307,7 @@ function recordFeedback({ logId, userId, vote }) {
         entry.feedback = (entry.feedback || []).filter((f) => f.by !== userId);
         entry.feedback.push({ by: userId, vote, at: new Date().toISOString() });
 
-        fs.writeFileSync(LOG_PATH, JSON.stringify(entries, null, 2));
+        writeJson(LOG_PATH, entries);
         return { ok: true, vote };
     } catch (err) {
         console.error("[ai] could not record feedback:", err.message);

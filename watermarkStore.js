@@ -1,5 +1,6 @@
 const fs = require("fs");
 const crypto = require("crypto");
+const { writeJson } = require("./jsonStore");
 
 const FILE = "./watermarkStore.json";
 
@@ -9,7 +10,7 @@ function load() {
 }
 
 function save(data) {
-    fs.writeFileSync(FILE, JSON.stringify(data, null, 2));
+    writeJson(FILE, data);
 }
 
 // 32 hex chars — long enough that it isn't guessable, since this token doubles as

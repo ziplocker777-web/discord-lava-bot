@@ -30,6 +30,7 @@ const {
     ModalBuilder, TextInputBuilder, TextInputStyle,
 } = require("discord.js");
 const { notifyOwner } = require("./ownerNotify");
+const { writeJson } = require("./jsonStore");
 
 const STORE = path.join(__dirname, "winbackStore.json");
 
@@ -56,7 +57,7 @@ function load() {
 }
 
 function save(data) {
-    fs.writeFileSync(STORE, JSON.stringify(data, null, 2));
+    writeJson(STORE, data);
 }
 
 async function allInvoices() {

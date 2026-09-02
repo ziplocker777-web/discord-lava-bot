@@ -1,4 +1,5 @@
 const fs = require("fs");
+const { writeJson } = require("./jsonStore");
 
 const FILE = "./refundedEmails.json";
 
@@ -15,7 +16,7 @@ function load() {
 }
 
 function save(list) {
-    fs.writeFileSync(FILE, JSON.stringify(list, null, 2));
+    writeJson(FILE, list);
 }
 
 function isRefunded(email) {

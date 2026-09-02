@@ -1,5 +1,6 @@
 const fs = require("fs");
 const path = require("path");
+const { writeJson } = require("./jsonStore");
 
 /**
  * Refunds recorded against one payment rather than one buyer.
@@ -32,7 +33,7 @@ function all() {
 }
 
 function save(list) {
-    fs.writeFileSync(FILE, JSON.stringify(list, null, 2) + "\n");
+    writeJson(FILE, list);
 }
 
 /**

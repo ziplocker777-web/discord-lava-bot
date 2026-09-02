@@ -1,4 +1,5 @@
 const fs = require("fs");
+const { writeJson } = require("./jsonStore");
 
 const FILE = "./purchaseStore.json";
 
@@ -18,7 +19,7 @@ function load() {
 }
 
 function save(data) {
-    fs.writeFileSync(FILE, JSON.stringify(data, null, 2));
+    writeJson(FILE, data);
 }
 
 // Adds or updates the entry for this (email, productId) pair — a second call for a

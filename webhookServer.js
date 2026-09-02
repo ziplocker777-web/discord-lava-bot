@@ -468,21 +468,22 @@ function startWebhookServer(client) {
                     + `buyer: ${event.buyer?.email || "?"}, errorMessage: ${event.errorMessage || "?"}`
                 );
 
-                // Worth knowing before it becomes a lapse: lava.top retries a
-                // couple of times, so there is a day or two here in which a word
-                // to the customer can save the subscription.
-                await notifyOwner(client, everPaid
-                    ? `**Renewal payment failed** — nothing taken away yet\n\n`
-                        + `• ${event.buyer?.email || "unknown"}\n`
-                        + `• reason: ${event.errorMessage || "not given"}\n\n`
-                        + `lava.top will retry. If every attempt fails, the role goes `
-                        + `automatically and the key three days later.`
-                    : `**A subscription never started** — the first payment failed\n\n`
-                        + `• ${event.buyer?.email || "unknown"}\n`
-                        + `• reason: ${event.errorMessage || "not given"}\n\n`
-                        + `They have never bought anything, so no role or key is `
-                        + `involved. lava.top will retry; this is a lost sale rather `
-                        + `than a lapsing customer.`);
+                // Nothing is sent when a FIRST payment fails. Somebody abandoning
+                // a checkout is not news anybody can act on: they never had a role,
+                // nothing is at risk, and /abandoned already collects them for when
+                // there is a reason to look.
+                //
+                // A failing renewal is different, and worth knowing before it
+                // becomes a lapse: lava.top retries a couple of times, so there is
+                // a day or two in which a word to the customer saves it.
+                if (!everPaid) return res.sendStatus(200);
+
+                await notifyOwner(client,
+                    `**Renewal payment failed** — nothing taken away yet\n\n`
+                    + `• ${event.buyer?.email || "unknown"}\n`
+                    + `• reason: ${event.errorMessage || "not given"}\n\n`
+                    + `lava.top will retry. If every attempt fails, the role goes `
+                    + `automatically and the key three days later.`);
 
                 return res.sendStatus(200);
             } else if (isFinalCancellationEvent(event)) {
