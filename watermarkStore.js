@@ -196,17 +196,43 @@ function clearRevoked(discordId, productId) {
  * question came from -- a ticket has an email, a Discord report has an id, a
  * leaked build has the key printed in it.
  */
-function search(query) {
+/**
+ * Find somebody's keys.
+ *
+ * Exact first: a whole licence key, a whole email, a Discord id. If that finds
+ * nothing, the same query is tried as a fragment of an email or a key.
+ *
+ * The fallback exists because the exact-only version quietly found nothing for
+ * "treysucks83" while treysucks83@gmail.com was sitting in the store -- and a
+ * lookup that answers "no key found" for somebody who has one is worse than no
+ * lookup at all, because it reads like an answer.
+ *
+ * Exact still wins outright when it matches, so a full email can never drag in
+ * somebody else's address that happens to contain it.
+ *
+ * @param {string[]} [alsoDiscordIds] extra accounts to count as a match --
+ *        used by the commands to look somebody up by their Discord name, which
+ *        this store does not keep and cannot resolve on its own.
+ */
+function search(query, alsoDiscordIds = []) {
     const db = load();
     const q = String(query || "").trim().toLowerCase();
-    if (!q) return [];
+    const ids = new Set(alsoDiscordIds.map(String));
+    if (!q && ids.size === 0) return [];
 
-    return Object.entries(db)
-        .map(([token, record]) => ({ token, ...record }))
-        .filter((r) =>
-            String(r.licenseKey || "").toLowerCase() === q
-            || String(r.email || "").toLowerCase() === q
-            || String(r.discordId || "") === query.trim());
+    const rows = Object.entries(db).map(([token, record]) => ({ token, ...record }));
+
+    const exact = rows.filter((r) =>
+        (q && String(r.licenseKey || "").toLowerCase() === q)
+        || (q && String(r.email || "").toLowerCase() === q)
+        || (q && String(r.discordId || "") === query.trim())
+        || ids.has(String(r.discordId || "")));
+
+    if (exact.length || !q) return exact;
+
+    return rows.filter((r) =>
+        String(r.email || "").toLowerCase().includes(q)
+        || String(r.licenseKey || "").toLowerCase().includes(q));
 }
 
 module.exports = {

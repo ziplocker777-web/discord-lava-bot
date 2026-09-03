@@ -179,9 +179,11 @@ function subscriptionsIn(mine) {
 
 async function customer(interaction, client) {
     const query = input(interaction, "who").trim();
+    // A Discord name is the one thing the stores cannot answer for themselves.
+    const alsoIds = await discordIdsFor(query, client);
     const lines = [];
 
-    const keys = search(query);
+    const keys = search(query, alsoIds);
     const emails = [...new Set(keys.map((k) => k.email).filter(Boolean))];
     const ids = [...new Set(keys.map((k) => String(k.discordId)).filter(Boolean))];
 
@@ -289,11 +291,40 @@ async function customer(interaction, client) {
     return interaction.editReply(lines.join("\n").slice(0, 1990));
 }
 
+/**
+ * Discord accounts matching a name typed into a lookup.
+ *
+ * The stores keep a Discord id and never a name, so "@somebody" or "somebody"
+ * cannot be found by reading them. This asks the server, and hands the ids back
+ * for search() to match on.
+ *
+ * Anything that already looks like an email, a licence key or an id is left
+ * alone: there is no point asking Discord about an address, and a numeric id
+ * already matches on its own.
+ */
+async function discordIdsFor(query, client) {
+    const q = String(query || "").trim().replace(/^@/, "");
+
+    if (!q || !client) return [];
+    if (q.includes("@")) return [];                 // an email
+    if (/^\d{17,20}$/.test(q)) return [];           // already an id
+    if (/^[A-Z0-9]{4}-[A-Z0-9]{4}/i.test(q)) return []; // a licence key
+
+    try {
+        const guild = await client.guilds.fetch(process.env.GUILD_ID);
+        const found = await guild.members.search({ query: q, limit: 10 });
+        return [...found.values()].map((m) => m.id);
+    } catch (err) {
+        console.warn(`[lookup] could not search Discord for "${q}": ${err.message}`);
+        return [];
+    }
+}
+
 /* --------------------------------------------------- /revokekey /restorekey */
 
-async function setKeyState(interaction, revoked) {
+async function setKeyState(interaction, revoked, client) {
     const query = input(interaction, "who").trim();
-    const matches = search(query);
+    const matches = search(query, await discordIdsFor(query, client));
 
     if (matches.length === 0) {
         return interaction.editReply("No key found for that — try the key itself, an email, or a Discord id.");
@@ -656,8 +687,9 @@ async function deliver(interaction, client) {
  */
 async function resend(interaction, client) {
     const query = input(interaction, "who").trim();
+    const alsoIds = await discordIdsFor(query, client);
 
-    const keys = search(query);
+    const keys = search(query, alsoIds);
     if (keys.length === 0) {
         return interaction.editReply("Nothing found — try an email, a Discord id, or the key itself.");
     }
@@ -1577,8 +1609,8 @@ async function admin(interaction) {
 const HANDLERS = {
     admin,
     customer,
-    revokekey: (i) => setKeyState(i, true),
-    restorekey: (i) => setKeyState(i, false),
+    revokekey: (i, c) => setKeyState(i, true, c),
+    restorekey: (i, c) => setKeyState(i, false, c),
     lapsed,
     grantrole,
     deliver,

@@ -241,7 +241,7 @@ new SlashCommandBuilder()
     .addStringOption((option) =>
       option
         .setName("who")
-        .setDescription("Email, Discord id, or licence key")
+        .setDescription("Email, Discord name or id, or licence key")
         .setRequired(true)
     )
     .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
@@ -259,7 +259,7 @@ new SlashCommandBuilder()
     .addStringOption((option) =>
       option
         .setName("who")
-        .setDescription("Email, Discord id, or licence key")
+        .setDescription("Email, Discord name or id, or licence key")
         .setRequired(true)
     )
     .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
@@ -271,7 +271,7 @@ new SlashCommandBuilder()
     .addStringOption((option) =>
       option
         .setName("who")
-        .setDescription("Licence key, email, or Discord id")
+        .setDescription("Licence key, email, or Discord name or id")
         .setRequired(true)
     )
     .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
@@ -283,7 +283,7 @@ new SlashCommandBuilder()
     .addStringOption((option) =>
       option
         .setName("who")
-        .setDescription("Licence key, email, or Discord id")
+        .setDescription("Licence key, email, or Discord name or id")
         .setRequired(true)
     )
     .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)

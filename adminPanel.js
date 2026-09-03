@@ -47,12 +47,12 @@ const ACTIONS = {
     customer: {
         label: "Look up", emoji: "🔍", style: ButtonStyle.Primary,
         title: "Look up a customer",
-        fields: [{ id: "who", label: "Email, Discord id, or licence key", required: true }],
+        fields: [{ id: "who", label: "Email, Discord name or id, or licence key", required: true }],
     },
     resend: {
         label: "Resend", emoji: "🔁", style: ButtonStyle.Primary,
         title: "Send their download again",
-        fields: [{ id: "who", label: "Email, Discord id, or licence key", required: true }],
+        fields: [{ id: "who", label: "Email, Discord name or id, or licence key", required: true }],
     },
     sync: {
         label: "Restore role", emoji: "🔄", style: ButtonStyle.Primary,
@@ -82,12 +82,12 @@ const ACTIONS = {
     revokekey: {
         label: "Kill key", emoji: "🔒", style: ButtonStyle.Danger,
         title: "Revoke a licence key",
-        fields: [{ id: "who", label: "Licence key, email, or Discord id", required: true }],
+        fields: [{ id: "who", label: "Licence key, email, or Discord name or id", required: true }],
     },
     restorekey: {
         label: "Revive key", emoji: "🔓", style: ButtonStyle.Success,
         title: "Bring a licence key back",
-        fields: [{ id: "who", label: "Licence key, email, or Discord id", required: true }],
+        fields: [{ id: "who", label: "Licence key, email, or Discord name or id", required: true }],
     },
     refund: {
         label: "Refund", emoji: "💸", style: ButtonStyle.Danger,
