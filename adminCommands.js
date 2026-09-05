@@ -1408,17 +1408,30 @@ async function buyersWhoLeft(client, buyers) {
  * @param {(row: object) => number} weigh  what the row contributes to its day
  * @param {(total: number) => string} label what to print after the bar
  */
+/**
+ * The calendar day something happened on, in the machine's own timezone.
+ *
+ * toISOString() would give the UTC day, and the shop runs on Moscow time: the
+ * row labelled today would begin at 03:00 and everything before that would be
+ * filed under yesterday. That is how "today - 41" came to sit above a bar
+ * reading 18 for the same date.
+ */
+function dayOf(t) {
+    const d = new Date(t);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
 function chart(rows, days, when, weigh = () => 1, label = (n) => String(n)) {
     const now = Date.now();
     const buckets = new Map();
 
     for (let d = 0; d < days; d += 1) {
-        buckets.set(new Date(now - d * 86400e3).toISOString().slice(0, 10), 0);
+        buckets.set(dayOf(now - d * 86400e3), 0);
     }
     for (const r of rows) {
         const at = when(r);
         if (!Number.isFinite(at)) continue;
-        const day = new Date(at).toISOString().slice(0, 10);
+        const day = dayOf(at);
         if (buckets.has(day)) buckets.set(day, buckets.get(day) + weigh(r));
     }
 
@@ -1490,7 +1503,7 @@ async function members(interaction, client) {
     const lines = [
         "# Members",
         "### Joined",
-        `• today — ${since(24)}`,
+        `• 24 hours — ${since(24)}`,
         `• 7 days — ${since(24 * 7)}`,
         `• 30 days — ${since(24 * 30)}`,
         `• since ${new Date(oldest).toISOString().slice(0, 10)} — ${first.size} people` +
