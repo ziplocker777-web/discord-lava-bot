@@ -36,6 +36,23 @@ const vouches = load("vouchStore.json") || {};
 const refunded = load("refundedEmails.json") || [];
 const panels = load("panelStore.json") || {};
 
+/**
+ * The owner's own accounts, which are not customers.
+ *
+ * His testing put seven purchases with no role and a record with no productId
+ * into every run. A report that always shows the same seven complaints is one
+ * nobody reads closely, and a real eighth would have hidden among them.
+ *
+ * The count of what was skipped is still printed. Excluding quietly would be a
+ * worse habit than the noise.
+ */
+const own = load("ownAccounts.json") || { emails: [], discordIds: [] };
+const ownEmails = new Set((own.emails || []).map((e) => String(e).toLowerCase()));
+const ownIds = new Set((own.discordIds || []).map(String));
+const isOwn = (email, discordId) =>
+    ownEmails.has(String(email || "").toLowerCase()) || ownIds.has(String(discordId || ""));
+let skipped = 0;
+
 const findings = [];
 const note = (level, what, detail) => findings.push({ level, what, detail });
 const lower = (s) => String(s || "").toLowerCase();
@@ -109,6 +126,7 @@ async function allInvoices() {
     const noRole = [];
     for (const [email, list] of Object.entries(purchases)) {
         for (const p of list) {
+            if (isOwn(email, p.discordId)) { skipped += 1; continue; }
             if (!p.productId && !p.product?.id) noProductId.push(`${email}: ${JSON.stringify(p).slice(0, 90)}`);
             if (!p.discordId) noDiscord.push(email);
             if (getRolesForPurchase(p).length === 0) noRole.push(`${email}: ${p.productTitle || p.productId || "?"}`);
@@ -207,6 +225,12 @@ async function allInvoices() {
     const ownerId = String(guild.ownerId);
 
     // --- who paid and has no role ---
+    const tierRoleIds = new Set([
+        process.env.BASIC_ROLE_ID,
+        process.env.SUBSCRIBE_ROLE_ID,
+        process.env.PREMIUM_ROLE_ID,
+    ].filter(Boolean));
+
     const roleMissing = [];
     const gone = [];
     const collectorWrong = [];
@@ -214,6 +238,8 @@ async function allInvoices() {
 
     const targets = [...idToEmails.entries()];
     for (const [discordId, emails] of targets) {
+        if (isOwn([...emails][0], discordId)) { skipped += 1; continue; }
+
         let member;
         try {
             member = await guild.members.fetch({ user: discordId, force: true });
@@ -224,7 +250,12 @@ async function allInvoices() {
 
         for (const email of emails) {
             for (const p of purchases[email] || []) {
-                for (const roleId of getRolesForPurchase(p)) {
+                // Only the shared customer role. Tier roles come and go with the
+                // subscription -- paytinsalat7 and tyreekpatterson65 lost theirs
+                // because their subscriptions ended, which is the system working,
+                // and reporting that as a missing role is how a check earns being
+                // ignored. Section 7 checks tiers properly, against who is paying.
+                for (const roleId of getRolesForPurchase(p).filter((id) => !tierRoleIds.has(id))) {
                     if (!member.roles.cache.has(roleId)) {
                         roleMissing.push(`${email} · ${p.productTitle || p.productId} · нет ${guild.roles.cache.get(roleId)?.name || roleId}`);
                     }
@@ -341,7 +372,8 @@ function report() {
     const problems = findings.filter((f) => f.level === "!");
     const questions = findings.filter((f) => f.level === "?");
 
-    console.log(`проверок: ${checks} · жалоб: ${problems.length} · на подумать: ${questions.length}`);
+    console.log(`проверок: ${checks} · жалоб: ${problems.length} · на подумать: ${questions.length}`
+        + (skipped ? ` · пропущено своих: ${skipped}` : ""));
     console.log("=".repeat(64));
 
     for (const f of [...problems, ...questions]) {
