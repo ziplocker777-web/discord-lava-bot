@@ -43,11 +43,11 @@ const at = (r) => Date.parse(r.datetime || r.created || "");
 /** Handed back, by either list. Money that came back is not takings. */
 const refunded = (r) => isRefunded(lower(r.buyer?.email)) || isRefundedInvoice(r);
 
-/** "+38%", "-12%", or a dash when there is nothing to compare against. */
+/** "+38%", "-12%", or a word when there is nothing to compare against. */
 function change(now, before) {
-    if (!before) return now ? "новое" : "—";
+    if (!before) return now ? "new" : "—";
     const pct = Math.round(((now - before) / before) * 100);
-    if (pct === 0) return "без изменений";
+    if (pct === 0) return "unchanged";
     return `${pct > 0 ? "+" : ""}${pct}%`;
 }
 
@@ -150,47 +150,49 @@ function nameOf(r) {
 
     // ---- write it out --------------------------------------------------------
     const lines = [
-        "# Неделя",
+        "# This week",
         "",
-        "### Деньги",
-        `• ${money.toFixed(2)} USD — ${change(money, moneyBefore)} к прошлой неделе`,
-        `• ${thisWeek.length} продаж — ${change(thisWeek.length, lastWeek.length)}` +
-        ` (было ${lastWeek.length})`,
+        "### Money",
+        `• ${money.toFixed(2)} USD — ${change(money, moneyBefore)} on last week`,
+        `• ${thisWeek.length} sale(s) — ${change(thisWeek.length, lastWeek.length)}` +
+        ` (was ${lastWeek.length})`,
     ];
 
     if (products.length) {
-        lines.push("", "### Что покупали", "```");
+        lines.push("", "### What sold", "```");
         const widest = Math.max(...products.map(([n]) => n.length), 8);
         for (const [name, n] of products) {
             const was = soldBefore.get(name) || 0;
-            lines.push(`${name.padEnd(widest)}  ${String(n).padStart(3)}   ${was ? `было ${was}` : "новое"}`);
+            lines.push(`${name.padEnd(widest)}  ${String(n).padStart(3)}   ${was ? `was ${was}` : "new"}`);
         }
         lines.push("```");
     }
 
-    lines.push("", "### Подписки", `• ${running} действующих`);
-    if (failedRenewals) lines.push(`• ${failedRenewals} продлений не прошло за неделю`);
+    lines.push("", "### Subscriptions", `• ${running} running`);
+    if (failedRenewals) {
+        lines.push(`• ${failedRenewals} renewal(s) failed this week`);
+    }
 
     if (joined !== null) {
         lines.push(
             "",
-            "### Люди",
-            `• пришло ${joined} — ${change(joined, joinedBefore)} (было ${joinedBefore})`,
+            "### People",
+            `• ${joined} joined — ${change(joined, joinedBefore)} (was ${joinedBefore})`,
             // Deliberately not called a conversion rate. The people who bought this
             // week are mostly not the people who arrived this week -- the median gap
             // between joining and buying is five days -- so it is printed as the
             // ratio it is and left at that.
-            `• ${thisWeek.length} продаж на ${joined} пришедших`);
+            `• ${thisWeek.length} sale(s) against ${joined} arrivals`);
     }
 
     if (average) {
-        lines.push("", "### Отзывы",
-            `• ${average} из 5, всего ${rated.length}` +
-            (fresh.length ? ` — ${fresh.length} за неделю` : " — новых нет"));
+        lines.push("", "### Reviews",
+            `• ${average} out of 5, ${rated.length} in total` +
+            (fresh.length ? ` — ${fresh.length} this week` : ` — none new`));
     }
 
     if (refundsThisWeek) {
-        lines.push("", "### Стоит посмотреть", `• возвратов за неделю: ${refundsThisWeek}`);
+        lines.push("", "### Worth a look", `• ${refundsThisWeek} refund(s) this week`);
     }
 
     const body = lines.join("\n").slice(0, 1900);
@@ -199,11 +201,11 @@ function nameOf(r) {
 
     if (SEND) {
         const ok = await notifyOwner(client, body);
-        console.log(`\n${ok ? "отправлено" : "ОТПРАВИТЬ НЕ УДАЛОСЬ"}`);
+        console.log(`\n${ok ? "sent" : "COULD NOT SEND"}`);
     } else {
-        console.log("\n— вхолостую, ничего не отправлено. --send чтобы отправить.");
+        console.log("\n— dry run, nothing sent. --send to send it.");
     }
 
     client.destroy();
     process.exit(0);
-})().catch((e) => { console.error("сломалось:", e.message); process.exit(1); });
+})().catch((e) => { console.error("failed:", e.message); process.exit(1); });
