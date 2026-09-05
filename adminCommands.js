@@ -78,7 +78,28 @@ const wasRefunded = (r) =>
     refundedEmailList().includes(String(r.buyer?.email || "").toLowerCase())
     || isRefundedInvoice(r);
 
-const when = (t) => (t ? new Date(t).toISOString().replace("T", " ").slice(0, 16) : "—");
+/**
+ * A moment as the clock on the wall shows it, not as UTC does.
+ *
+ * Everything here used to print toISOString(), which is three hours behind the
+ * shop. A sale at one in the morning was reported as ten the previous evening,
+ * and a subscription that ended today looked like it ended yesterday. The
+ * machine runs on Moscow time, so the machine's own clock is the right one.
+ *
+ * Accepts a number, a Date, or the ISO strings lava.top hands back.
+ */
+const at = (t) => (typeof t === "string" || typeof t === "number" ? new Date(t) : t);
+
+const pad = (n) => String(n).padStart(2, "0");
+
+const when = (t) => {
+    if (!t) return "—";
+    const d = at(t);
+    if (Number.isNaN(d.getTime())) return "—";
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} `
+        + `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+};
+
 
 /**
  * The same handlers serve a slash command and a button panel, and the two carry
@@ -244,7 +265,7 @@ async function customer(interaction, client) {
                 const flag = known.has(title) ? "" : "  ⚠️ **not in the bot's records**";
                 lines.push(
                     `• ${title} — ${r.receipt?.amount ?? "?"} ${r.receipt?.currency ?? ""}` +
-                    ` — ${String(r.datetime || r.created).slice(0, 10)}${flag}`);
+                    ` — ${dayOf(r.datetime || r.created)}${flag}`);
             }
         }
 
@@ -906,7 +927,7 @@ async function stats(interaction) {
         `• 24 hours — ${day.length} sale(s), ${net(day)}`,
         `• 7 days — ${week.length} sale(s), ${net(week)}`,
         `• 30 days — ${month.length} sale(s), ${net(month)}`,
-        `• since ${oldest ? when(oldest).slice(0, 10) : "the start"} — ${paid.length} sale(s), **${net(paid)}**`,
+        `• since ${oldest ? dayOf(oldest) : "the start"} — ${paid.length} sale(s), **${net(paid)}**`,
         "",
         `_Gross was ${gross(paid)}; lava.top's cut and ${refundedHere} known refund(s) are already off._`,
         "",
@@ -1190,7 +1211,7 @@ async function abandoned(interaction, client) {
 
     for (const l of lost.slice(0, 12)) {
         lines.push(
-            `• ${String(l.at).slice(0, 10)} — ${l.product} — ${l.amount} ${l.currency}`);
+            `• ${dayOf(l.at)} — ${l.product} — ${l.amount} ${l.currency}`);
         lines.push(`  ${l.discordId ? `<@${l.discordId}>` : "no Discord id"} · ${l.email}`);
     }
     if (lost.length > 12) lines.push(`… and ${lost.length - 12} more`);
@@ -1237,7 +1258,7 @@ async function top(interaction, client) {
 
     ranked.slice(0, 12).forEach(([email, v], i) => {
         lines.push(`**${i + 1}.** ${v.spent.toFixed(2)} USD — ${v.n} purchase(s)`);
-        lines.push(`  ${v.id ? `<@${v.id}>` : email} · last ${v.last.slice(0, 10)}`);
+        lines.push(`  ${v.id ? `<@${v.id}>` : email} · last ${dayOf(v.last)}`);
     });
 
     return interaction.editReply(lines.join("\n").slice(0, 1990));
@@ -1417,8 +1438,10 @@ async function buyersWhoLeft(client, buyers) {
  * reading 18 for the same date.
  */
 function dayOf(t) {
+    if (t === null || t === undefined || t === "") return "—";
     const d = new Date(t);
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    if (Number.isNaN(d.getTime())) return "—";
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
 function chart(rows, days, when, weigh = () => 1, label = (n) => String(n)) {
@@ -1506,7 +1529,7 @@ async function members(interaction, client) {
         `• 24 hours — ${since(24)}`,
         `• 7 days — ${since(24 * 7)}`,
         `• 30 days — ${since(24 * 30)}`,
-        `• since ${new Date(oldest).toISOString().slice(0, 10)} — ${first.size} people` +
+        `• since ${dayOf(oldest)} — ${first.size} people` +
         (rows.length > first.size ? ` (${rows.length - first.size} came back later)` : ""),
         "",
         "### Last 14 days",
@@ -1519,7 +1542,7 @@ async function members(interaction, client) {
     if (median !== null) {
         lines.push(
             `${sameDay} bought the day they arrived; the middle one took ` +
-            `${median < 1 ? "under a day" : `${Math.round(median)} day(s)`}`);
+            `${median < 1 ? "under a day" : `${Math.round(median)} dayOf(s)`}`);
     }
 
     lines.push(
@@ -1583,7 +1606,7 @@ async function winback(interaction, client) {
     ];
 
     lines.push(
-        `_Only checkouts abandoned after ${new Date(since).toISOString().slice(0, 16).replace("T", " ")} ` +
+        `_Only checkouts abandoned after ${when(since)} ` +
         "are ever asked about — anybody who gave up before that has forgotten this shop exists._",
         "");
 
@@ -1592,7 +1615,7 @@ async function winback(interaction, client) {
     } else {
         lines.push(`**${people.length} would be asked:**`);
         for (const p of people.slice(0, 10)) {
-            lines.push(`• <@${p.discordId}> — ${p.shown || p.product} — ${new Date(p.at).toISOString().slice(0, 10)}`);
+            lines.push(`• <@${p.discordId}> — ${p.shown || p.product} — ${dayOf(p.at)}`);
         }
     }
 

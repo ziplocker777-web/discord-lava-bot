@@ -53,6 +53,15 @@ const APPLY = process.argv.includes("--apply");
  */
 const KEY_GRACE_DAYS = 3;
 
+/** A date on the shop's own clock, not UTC. lava.top hands back ISO strings. */
+const day = (t) => {
+    if (!t) return "—";
+    const d = new Date(t);
+    if (Number.isNaN(d.getTime())) return "—";
+    const pad = (n) => String(n).padStart(2, "0");
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+};
+
 const LOG_PATH = path.join(__dirname, "revokeLog.json");
 const EXEMPT_PATH = path.join(__dirname, "revokeExempt.json");
 
@@ -194,7 +203,7 @@ async function notify(client, done) {
     const lines = done.map((d) => {
         const took = [d.role ? "role removed" : null, d.key ? `key ${d.key} revoked` : null]
             .filter(Boolean).join(", ");
-        return `• ${d.email} — ${d.tier}, ended ${String(d.terminatedAt).slice(0, 10)} — ${took}`;
+        return `• ${d.email} — ${d.tier}, ended ${day(d.terminatedAt)} — ${took}`;
     });
 
     const heading = done.length === 1
@@ -395,7 +404,7 @@ function record(entries) {
                 const what = [p.holdsRole ? `role ${p.tier}` : null, p.key ? `key ${p.key}` : null]
                     .filter(Boolean).join(" + ");
                 console.log(`  ${p.sub.email}  discord ${p.sub.discordId}  ${what}` +
-                    `  ended ${String(p.sub.terminatedAt || p.sub.expiredAt || p.sub.last).slice(0, 10)}`);
+                    `  ended ${day(p.sub.terminatedAt || p.sub.expiredAt || p.sub.last)}`);
             }
 
             if (!APPLY) {
