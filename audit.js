@@ -234,6 +234,7 @@ async function allInvoices() {
     const roleMissing = [];
     const gone = [];
     const collectorWrong = [];
+    const collectorExtra = [];
     const COLLECTOR = process.env.COLLECTOR_ROLE_ID;
 
     const targets = [...idToEmails.entries()];
@@ -271,7 +272,15 @@ async function allInvoices() {
             const products = productCount([...emails][0], discordId);
             const has = member.roles.cache.has(COLLECTOR);
             if (products >= 2 && !has) collectorWrong.push(`${[...emails][0]} — ${products} товара, значка нет`);
-            if (products < 2 && has) collectorWrong.push(`${[...emails][0]} — ${products} товар, а значок есть`);
+            // Only the direction anybody can act on is a complaint.
+            //
+            // A missing badge can be granted. A badge somebody holds that the
+            // records cannot justify is not a fault: the rule is that it is never
+            // taken away, and the records do not reach far enough back to argue.
+            // lava.top serves invoices only from 2026-07-06, so an earlier
+            // purchase is invisible to every source here -- yakuzaxealive bought
+            // before that and this called him wrong on every run.
+            if (products < 2 && has) collectorExtra.push(`${[...emails][0]} — значок есть, покупок в записях ${products}`);
         }
     }
 
@@ -281,9 +290,18 @@ async function allInvoices() {
 
     if (gone.length) console.log(`        ${gone.length} покупател(ей) вышли с сервера`);
 
-    if (collectorWrong.length) bad(`Collector выдан неверно у ${collectorWrong.length}`,
+    if (collectorWrong.length) bad(`Collector не выдан у ${collectorWrong.length} заслуживших`,
         collectorWrong.slice(0, 12).join("\n      "));
-    else ok("Collector совпадает с числом товаров у всех");
+    else ok("все заслужившие Collector его имеют");
+
+    if (collectorExtra.length) {
+        checks += 1;
+        console.log(`  ?     ${collectorExtra.length} значк(ов) старше записей — не ошибка`);
+        note("?", `${collectorExtra.length} значк(ов) без подтверждения в записях`,
+            "снимать не нужно: значок не отбирается, а покупки до 2026-07-06 "
+            + "в счетах lava.top не сохранились:\n      "
+            + collectorExtra.join("\n      "));
+    }
 
     // --- subscriptions: expired but still holding the role ---
     console.log("\n[7] подписки\n");
