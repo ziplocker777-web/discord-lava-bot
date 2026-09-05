@@ -103,6 +103,15 @@ function streamWatermarkedPackage(res, token) {
     const record = getWatermark(token);
     if (!record) return false;
 
+    // A revoked key stops the app at activation, but the download link kept
+    // working for ever -- so somebody refunded still had the file on tap. The
+    // revocation is a deliberate act with /restorekey as its undo, so it should
+    // mean the same thing everywhere rather than only at the last gate.
+    if (record.revoked) {
+        console.warn(`[delivery] download refused for a revoked key (${record.email || "unknown"})`);
+        return false;
+    }
+
     res.attachment(`${PACKAGE_NAME}.zip`);
 
     const archive = archiver("zip", { zlib: { level: 6 } });
