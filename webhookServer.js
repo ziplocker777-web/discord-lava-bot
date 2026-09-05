@@ -3,6 +3,7 @@ const express = require("express");
 const { recordPurchase, markStatus, getPurchaseForProduct, hasPurchase } = require("./purchaseStore");
 const { checkCollector } = require("./collector");
 const { addRefundedInvoice } = require("./refundedInvoices");
+const { firstTimeSeen } = require("./seenEvents");
 const {
     getRolesForPurchase,
     getRolesForProduct,
@@ -303,7 +304,10 @@ function startWebhookServer(client) {
                     }
                 }
 
-                if (NOTIFY_SALES) {
+                // Announced once per payment, however many times lava.top
+                // delivers it. Everything above this line stays idempotent and
+                // still runs on a redelivery -- only the telling is deduplicated.
+                if (NOTIFY_SALES && firstTimeSeen(event)) {
                     const amount = event.amount ?? "";
                     const currency = event.currency || "";
 
