@@ -22,7 +22,11 @@ require("./env.js").loadEnv();
 const axios = require("axios");
 const { createInvoice } = require("./lavaClient");
 
-const EMAIL = process.env.OWNER_EMAIL || "ziplocker777@gmail.com";
+// Plus-tagged on purpose. lava.top refuses to let the seller buy from their own
+// shop with their bare address -- every product came back "Incorrect email to
+// purchase", which reads as eleven broken buttons rather than one rule. The tag
+// routes to the same inbox and the gateway treats it as a different buyer.
+const EMAIL = process.env.OWNER_EMAIL || "ziplocker777+paycheck@gmail.com";
 
 const lava = axios.create({
     baseURL: "https://gate.lava.top/api/v1",
