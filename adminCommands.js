@@ -243,7 +243,24 @@ async function customer(interaction, client) {
                 (ips.length ? ` from ${ips.length} address(es)` : ", addresses not recorded") +
                 (k.lastActivatedAt ? `, last ${when(k.lastActivatedAt)}` : "")
             );
-            if (ips.length) lines.push(`  ${ips.join(", ")}`);
+            // Each activation with its own date, not just the set of addresses.
+            // Three activations from one address in a minute is somebody whose
+            // app restarted; the same three spread over three weeks from three
+            // places is a key that has been passed around, and only the dates
+            // tell the two apart.
+            for (const a of (k.activations || []).slice(-5).reverse()) {
+                lines.push(`  • ${when(a.at)} ${a.ip || "address not recorded"}`);
+            }
+            if (!(k.activations || []).length && ips.length) lines.push(`  ${ips.join(", ")}`);
+
+            // The counter has been ticking since the key was issued; the list of
+            // when and from where only since that started being recorded. Saying
+            // so beats a count of three above a single line that looks like two
+            // went missing.
+            const kept = (k.activations || []).length;
+            if (kept && (k.activationCount || 0) > kept) {
+                lines.push(`  -# ${(k.activationCount || 0) - kept} earlier activation(s) happened before the addresses were logged`);
+            }
         }
     }
 
@@ -1303,7 +1320,11 @@ async function vouch(interaction, client) {
     // The panel's own message id lives in the same file; it is not a person.
     const asked = Object.fromEntries(
         Object.entries(v.load(v.STORE, {})).filter(([k]) => !k.startsWith("__")));
-    const rated = Object.values(asked).filter((a) => a.rating);
+    // The owner's own rating is left out here for the same reason it is left
+    // out of the shop panels: the shop is not one of its own customers, and a
+    // 2 he gave himself testing the buttons has no business in the average he
+    // reads to judge the product by.
+    const rated = Object.values(asked).filter((a) => a.rating && !a.owner);
     const average = rated.length
         ? (rated.reduce((t, a) => t + a.rating, 0) / rated.length).toFixed(2)
         : null;
@@ -1330,7 +1351,7 @@ async function vouch(interaction, client) {
         `**Replies** — ${rated.length} of ${Object.keys(asked).length} asked` +
         (average ? `, averaging **${average}★**` : ""));
 
-    for (const [id, a] of Object.entries(asked).filter(([, a]) => a.rating).slice(-4)) {
+    for (const [id, a] of Object.entries(asked).filter(([, a]) => a.rating && !a.owner).slice(-4)) {
         lines.push(`• ${"⭐".repeat(a.rating)} <@${id}> — ${(a.words || "no words").slice(0, 80)}`);
     }
 
@@ -1340,8 +1361,8 @@ async function vouch(interaction, client) {
         "> You've been using **<product>** for a few days now — how's it going?",
         "> If you've got five seconds, a rating would genuinely help.",
         "",
-        `_Five buttons, then an optional box for words. ${process.env.VOUCH_PUBLIC_MIN || 4}★ and up ` +
-        "go to the vouch channel; anything lower comes to you instead._");
+        `_Five buttons, then an optional box for words. Everything ${process.env.VOUCH_PUBLIC_MIN || 1}⭐ and up goes to the ` +
+        `channel; ${process.env.VOUCH_ALERT_MAX || 3}⭐ and below also comes to you._`);
 
     return interaction.editReply(lines.join("\n").slice(0, 1990));
 }
