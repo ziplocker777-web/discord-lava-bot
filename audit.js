@@ -18,6 +18,7 @@ require("./env.js").loadEnv();
 const axios = require("axios");
 const { Client, GatewayIntentBits } = require("discord.js");
 const { getRolesForPurchase, resolveTierWithLegacyFallback, TIERS } = require("./roles.js");
+const { productCount } = require("./collector.js");
 
 const QUICK = process.argv.includes("--quick");
 
@@ -232,7 +233,11 @@ async function allInvoices() {
         }
 
         if (COLLECTOR && discordId !== ownerId) {
-            const products = [...emails].reduce((t, e) => t + (purchases[e] || []).length, 0);
+            // Asked of the same function the grant uses, rather than counted here.
+            // Summing the lists double-counted one product bought under two
+            // addresses -- qwerty22800001 and lapha97 are one person with one
+            // subscription, and this reported them as owing a badge for weeks.
+            const products = productCount([...emails][0], discordId);
             const has = member.roles.cache.has(COLLECTOR);
             if (products >= 2 && !has) collectorWrong.push(`${[...emails][0]} — ${products} товара, значка нет`);
             if (products < 2 && has) collectorWrong.push(`${[...emails][0]} — ${products} товар, а значок есть`);
