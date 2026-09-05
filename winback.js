@@ -30,6 +30,7 @@ const {
     ModalBuilder, TextInputBuilder, TextInputStyle,
 } = require("discord.js");
 const { notifyOwner, named } = require("./ownerNotify");
+const { isOwn, isRealDiscordId } = require("./ownAccounts");
 const { writeJson } = require("./jsonStore");
 
 const STORE = path.join(__dirname, "winbackStore.json");
@@ -141,8 +142,11 @@ async function candidates(client) {
         if (status === "COMPLETED" || status === "FAILED") continue;
 
         const discordId = String(r.clientUtm?.utm_content || "");
-        if (!discordId) continue;                    // nobody to ask
+        // "0" is what the payment check puts on its invoices, and "0" is a truthy
+        // string -- enough to clear a plain falsy guard and end up being messaged.
+        if (!isRealDiscordId(discordId)) continue;   // nobody to ask
         if (owner && discordId === owner) continue;  // your own testing
+        if (isOwn(r.buyer?.email, discordId)) continue;
 
         // Once per person, not once per abandoned checkout: somebody who tried
         // three products in one evening gets one message, not three.

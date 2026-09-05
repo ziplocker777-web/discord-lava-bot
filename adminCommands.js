@@ -14,6 +14,7 @@ const axios = require("axios");
 const { getAllPurchases, getPurchaseForProduct, recordPurchase } = require("./purchaseStore");
 const { getRolesForProduct, resolveTierWithLegacyFallback, tierDownloadsChannelId, TIERS } = require("./roles");
 const { addRefund, removeRefund, isRefunded } = require("./refundedEmails");
+const { isOwn, isRealDiscordId } = require("./ownAccounts");
 const {
     addRefundedInvoice, removeRefundedInvoice, isRefundedInvoice,
 } = require("./refundedInvoices");
@@ -1193,7 +1194,13 @@ async function abandoned(interaction, client) {
         if (status === "COMPLETED" || status === "FAILED") continue;
 
         // Your own test checkouts are not lost sales.
+        //
+        // By address as well as by id, because the payment check raises its
+        // invoices with a plus-tagged address and a buyer id of "0" -- lava.top
+        // will not sell to the seller's bare address, so the check cannot use it.
+        // Twenty of those were being reported as $203 of abandoned custom.
         if (mine && String(r.clientUtm?.utm_content || "") === mine) continue;
+        if (isOwn(r.buyer?.email, r.clientUtm?.utm_content)) continue;
 
         const email = String(r.buyer?.email || "").toLowerCase();
         const product = r.product?.name || "?";

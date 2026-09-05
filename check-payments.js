@@ -103,7 +103,22 @@ const BUTTONS = [
     let ok = 0;
     let bad = 0;
 
-    for (const [label, id] of live) {
+    // One product unless asked for all of them.
+    //
+    // Every invoice raised here is real and never paid, so it lingers as an
+    // abandoned checkout: eleven per run put twenty of them into Lost sales,
+    // reported as $203 no customer ever failed to spend. The ids were all
+    // matched against the live catalogue above, which is the part that actually
+    // goes stale; raising one invoice proves the gateway is answering, and
+    // --all is there for the day that is not enough.
+    const attempts = process.argv.includes("--all") ? live : live.slice(0, 1);
+
+    if (attempts.length < live.length) {
+        console.log(`  (один товар из ${live.length}, --all чтобы все)
+`);
+    }
+
+    for (const [label, id] of attempts) {
         const started = Date.now();
         try {
             const invoice = await createInvoice({
