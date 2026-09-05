@@ -1741,4 +1741,4 @@ async function handleAdminCommand(interaction, client) {
     return true;
 }
 
-module.exports = { handleAdminCommand, warmMemberStats, HANDLERS };
+module.exports = { handleAdminCommand, warmMemberStats, HANDLERS, joinLog, dayOf, when };
