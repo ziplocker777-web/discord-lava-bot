@@ -18,7 +18,7 @@ const { clearRevoked, findByOwner, setRevoked } = require("./watermarkStore");
 const { addRefund, removeRefund } = require("./refundedEmails");
 const { registerPresetsApi } = require("./presetsApi");
 const { registerActivateApi } = require("./activateApi");
-const { notifyOwner } = require("./ownerNotify");
+const { notifyOwner, named } = require("./ownerNotify");
 const KNOWN_PRODUCT_IDS = require("./products");
 
 // Sales are the only notification frequent enough to become wallpaper.
@@ -318,11 +318,13 @@ function startWebhookServer(client) {
                     const renewal = Boolean(event.parentContractId)
                         || String(event.eventType || "").includes("recurring");
 
+                    const buyer = await named(client, discordId);
+
                     await notifyOwner(client,
                         `**${renewal ? "Renewal" : "Sale"}** — ${event.product?.title || "unknown"}` +
                         `${tier ? ` (${tier.label})` : ""}\n` +
                         `• ${email || "no email"}${amount ? ` — ${amount} ${currency}` : ""}` +
-                        `${discordId ? `\n• <@${discordId}>` : "\n• no discord id on the order"}`);
+                        `${buyer ? `\n• ${buyer}` : "\n• no discord id on the order"}`);
                 }
 
                 if (discordId) {
@@ -332,7 +334,7 @@ function startWebhookServer(client) {
                         console.error("Role grant failed inside Discord:", err.message);
                         await notifyOwner(client,
                             `**Paid, but the role could not be granted**\n\n` +
-                            `• <@${discordId}> — ${event.product?.title || "unknown"}\n` +
+                            `• ${await named(client, discordId)} — ${event.product?.title || "unknown"}\n` +
                             `• ${email || "no email"}\n` +
                             `• reason: ${err.message}\n\n` +
                             `Grant it by hand — they have paid.`);
@@ -399,7 +401,7 @@ function startWebhookServer(client) {
                                 // can be relayed by hand in one message.
                                 await notifyOwner(client,
                                     `**Buyer did not get their download**\n\n` +
-                                    `• <@${discordId}> — ${event.product?.title || "unknown"}\n` +
+                                    `• ${await named(client, discordId)} — ${event.product?.title || "unknown"}\n` +
                                     `• ${email || "no email"}\n` +
                                     `• reason: ${dmErr.message}\n\n` +
                                     `Download: ${downloadUrl}\nLicense key: \`${licenseKey}\`\n\n` +
@@ -536,7 +538,7 @@ function startWebhookServer(client) {
                 await notifyOwner(client,
                     `**Subscription cancelled**\n\n` +
                     `• ${email || "unknown"}` +
-                    `${discordId ? `\n• <@${discordId}>` : ""}\n\n` +
+                    `${discordId ? `\n• ${await named(client, discordId)}` : ""}\n\n` +
                     `Nothing taken away: they keep access until the period they have ` +
                     `paid for runs out. It is removed automatically on that date.`);
 

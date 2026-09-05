@@ -57,4 +57,25 @@ function clearThrottle(key) {
     lastSent.delete(key);
 }
 
-module.exports = { notifyOwner, clearThrottle };
+/**
+ * "username · <@id>", or the bare mention when the account cannot be read.
+ *
+ * A mention on its own renders as "unknown user" in a DM whenever the reading
+ * client has never come across that account -- a DM has no shared channel to
+ * resolve it from, which is why the same kind of notification sometimes shows a
+ * name and sometimes does not.
+ *
+ * The name goes in as plain text so the line is legible either way, and the
+ * mention stays so it is still clickable when Discord does resolve it.
+ */
+async function named(client, discordId) {
+    if (!discordId) return null;
+    try {
+        const user = await client.users.fetch(String(discordId));
+        return `${user.username} · <@${discordId}>`;
+    } catch {
+        return `<@${discordId}>`;
+    }
+}
+
+module.exports = { notifyOwner, clearThrottle, named };

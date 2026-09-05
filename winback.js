@@ -29,7 +29,7 @@ const {
     ActionRowBuilder, ButtonBuilder, ButtonStyle,
     ModalBuilder, TextInputBuilder, TextInputStyle,
 } = require("discord.js");
-const { notifyOwner } = require("./ownerNotify");
+const { notifyOwner, named } = require("./ownerNotify");
 const { writeJson } = require("./jsonStore");
 
 const STORE = path.join(__dirname, "winbackStore.json");
@@ -264,7 +264,7 @@ async function handleWinback(interaction, client) {
 
     await notifyOwner(client,
         `**Someone said why they didn't buy**\n\n` +
-        `• <@${interaction.user.id}> — ${record.product || "unknown product"}\n` +
+        `• ${await named(client, interaction.user.id)} — ${record.product || "unknown product"}\n` +
         `• ${record.email || "no email"}\n\n` +
         `> ${String(answer).slice(0, 900)}`);
 

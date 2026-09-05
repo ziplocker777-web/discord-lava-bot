@@ -30,7 +30,7 @@ const {
     ModalBuilder, TextInputBuilder, TextInputStyle,
 } = require("discord.js");
 const axios = require("axios");
-const { notifyOwner } = require("./ownerNotify");
+const { notifyOwner, named } = require("./ownerNotify");
 const { writeJson } = require("./jsonStore");
 
 const lava = axios.create({
@@ -739,7 +739,7 @@ async function handleVouch(interaction, client) {
                     await notifyOwner(client,
                         `**A review was lowered and taken down**\n\n`
                         + `${stars} \u2014 ${record.product || "unknown"}\n`
-                        + `\u2022 <@${interaction.user.id}> \u00b7 ${record.email || "no email"}\n\n`
+                        + `\u2022 ${await named(client, interaction.user.id)} \u00b7 ${record.email || "no email"}\n\n`
                         + (words ? `> ${words.slice(0, 900)}` : "_No words._"));
                     return true;
                 }
@@ -760,7 +760,7 @@ async function handleVouch(interaction, client) {
     await notifyOwner(client,
         `**${low ? "A rating that needs looking at" : "A review"}**${willPublish ? " (it is on the wall too)" : ""}\n\n` +
         `${stars} — ${record.product || "unknown"}\n` +
-        `• <@${interaction.user.id}> · ${record.email || "no email"}\n\n` +
+        `• ${await named(client, interaction.user.id)} · ${record.email || "no email"}\n\n` +
         (words ? `> ${words.slice(0, 900)}` : "_No words._"));
 
     return true;
