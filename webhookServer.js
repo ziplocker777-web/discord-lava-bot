@@ -1,6 +1,8 @@
 require("dotenv").config();
 const express = require("express");
-const { recordPurchase, markStatus, getPurchaseForProduct, hasPurchase } = require("./purchaseStore");
+const {
+    recordPurchase, markStatus, getPurchaseForProduct, hasPurchase, getAllPurchases,
+} = require("./purchaseStore");
 const { checkCollector } = require("./collector");
 const { addRefundedInvoice } = require("./refundedInvoices");
 const { firstTimeSeen } = require("./seenEvents");
@@ -679,7 +681,26 @@ async function handleRefund(client, event) {
         try {
             const guild = await client.guilds.fetch(process.env.GUILD_ID);
             const member = await guild.members.fetch({ user: discordId, force: true });
-            for (const roleId of getRolesForProduct(productId)) {
+
+            // The refunded product's roles include ROLE_ID, the one role every
+            // buyer shares -- and taking that back over one refund would shut
+            // somebody out of everything else they still own. David Williams
+            // returned a $5 add-on while keeping Muzzle Core FX and the Audio
+            // Overhaul; stripping his customer role would have taken both.
+            //
+            // markStatus has already marked this purchase refunded above, so
+            // anything still unrefunded is something they paid for and kept.
+            const stillOwns = getAllPurchases(email || "")
+                .some((p) => p.status !== "refunded");
+
+            const toRemove = getRolesForProduct(productId)
+                .filter((roleId) => !(stillOwns && roleId === process.env.ROLE_ID));
+
+            if (stillOwns) {
+                console.log(`${email} keeps the customer role — they still own something unrefunded.`);
+            }
+
+            for (const roleId of toRemove) {
                 if (!member.roles.cache.has(roleId)) continue;
                 await member.roles.remove(roleId);
                 did.push(`role ${roleId} removed`);
