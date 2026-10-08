@@ -217,6 +217,9 @@ function ratingFor(product) {
  *
  * Rounded stars beside the exact number: the stars are what the eye takes in at
  * a glance, and the number is there so that 4.7 is not quietly shown as five.
+ *
+ * "Users", not "customers": the same line sits on free tools too, and "rated by
+ * 11 customers" under something nobody paid for reads as made up.
  */
 function ratingLine(product) {
     const r = ratingFor(product);
@@ -225,7 +228,7 @@ function ratingLine(product) {
     const stars = "\u2b50".repeat(Math.round(r.avg));
     const channel = process.env.VOUCH_CHANNEL_ID;
 
-    return `${stars} **${r.avg.toFixed(1)}** / 5 \u2014 rated by ${r.count} customers`
+    return `${stars} **${r.avg.toFixed(1)}** / 5 \u2014 rated by ${r.count} users`
         + (channel ? ` \u00b7 <#${channel}>` : "");
 }
 
